@@ -1,5 +1,4 @@
 # 默认忽略的文件
 /shelf/
 /workspace.xml
-./deploymentTargetSelector.xml
-/git_toolbox_blame.xml
+/statistic.xml

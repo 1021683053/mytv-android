@@ -16,9 +16,26 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
     }
 }
 
-rootProject.name = "My TV"
-include(":app")
- 
+rootProject.name = "天光云影v3.3"
+
+include(":core:data")
+include(":core:util")
+include(":core:designsystem")
+include(":tv")
+include(":mobile")
+include(":ijkplayer-java")
+include(":allinone")
+
+val mediaSettingsFile = file("../media/core_settings.gradle")
+if (mediaSettingsFile.exists()) {
+    (gradle as ExtensionAware).extra["androidxMediaModulePrefix"] = "media3:"
+    apply(from = mediaSettingsFile)
+}
+
+include(":tbsx5")
+project(":tbsx5").projectDir = file("../YYKM/tbsx5")
