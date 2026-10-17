@@ -32,7 +32,6 @@ import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsNetworkScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsPermissionsScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsThemeScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsUiScreen
-import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsUpdateScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.categories.SettingsVideoPlayerScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsChannelGroupVisibilityScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsCloudSyncProviderScreen
@@ -45,7 +44,6 @@ import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsUiDensitySca
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsUiFontScaleRatioScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsUiScreenAutoCloseScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsUiTimeShowModeScreen
-import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsUpdateChannelScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerCoreScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerDisplayModeScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.subcategories.SettingsVideoPlayerLoadTimeoutScreen
@@ -62,7 +60,6 @@ fun SettingsScreen(
     startDestinationProvider: () -> String? = { null },
     channelGroupListProvider: () -> ChannelGroupList = { ChannelGroupList() },
     settingsViewModel: SettingsViewModel = settingsVM,
-    onCheckUpdate: () -> Unit = {},
     onReload: () -> Unit = {},
     onBackPressed: () -> Unit = {},
 ) {
@@ -160,15 +157,6 @@ fun SettingsScreen(
                         },
                         toVideoPlayerLoadTimeoutScreen = {
                             navController.navigateSingleTop(SettingsSubCategories.VIDEO_PLAYER_LOAD_TIMEOUT.name)
-                        },
-                        onBackPressed = { navController.navigateUp() },
-                    )
-                }
-
-                composable(SettingsCategories.UPDATE.name) {
-                    SettingsUpdateScreen(
-                        toUpdateChannelScreen = {
-                            navController.navigateSingleTop(SettingsSubCategories.UPDATE_CHANNEL.name)
                         },
                         onBackPressed = { navController.navigateUp() },
                     )
@@ -385,18 +373,6 @@ fun SettingsScreen(
                         onTimeoutChanged = {
                             settingsViewModel.videoPlayerLoadTimeout = it
                             navController.navigateUp()
-                        },
-                        onBackPressed = { navController.navigateUp() },
-                    )
-                }
-
-                composable(SettingsSubCategories.UPDATE_CHANNEL.name) {
-                    SettingsUpdateChannelScreen(
-                        updateChannelProvider = { settingsViewModel.updateChannel },
-                        onUpdateChannelChanged = {
-                            settingsViewModel.updateChannel = it
-                            navController.navigateUp()
-                            onCheckUpdate()
                         },
                         onBackPressed = { navController.navigateUp() },
                     )

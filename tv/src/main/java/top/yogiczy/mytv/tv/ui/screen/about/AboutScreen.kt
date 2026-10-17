@@ -2,13 +2,10 @@ package top.yogiczy.mytv.tv.ui.screen.about
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,7 +21,6 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.Text
 import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.Globals
-import top.yogiczy.mytv.core.util.utils.compareVersion
 import top.yogiczy.mytv.tv.BuildConfig
 import top.yogiczy.mytv.tv.R
 import top.yogiczy.mytv.tv.ui.material.SimplePopup
@@ -37,8 +33,6 @@ import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
 @Composable
 fun AboutScreen(
     modifier: Modifier = Modifier,
-    latestVersionProvider: () -> String = { "" },
-    toUpdateScreen: () -> Unit = {},
     onBackPressed: () -> Unit = {},
 ) {
     val childPadding = rememberChildPadding()
@@ -211,34 +205,6 @@ fun AboutScreen(
                 }
             }
 
-            item {
-                ListItem(
-                    modifier = Modifier.handleKeyEvents(onSelect = toUpdateScreen),
-                    headlineContent = { Text("检查更新") },
-                    trailingContent = {
-                        val currentVersion = BuildConfig.VERSION_NAME
-                        val latestVersion = latestVersionProvider().ifBlank { currentVersion }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (latestVersion.compareVersion(currentVersion) > 0) {
-                                Text("新版本: $latestVersion")
-                            } else {
-                                Text("无更新")
-                            }
-
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                            )
-                        }
-                    },
-                    selected = false,
-                    onClick = {},
-                )
             }
         }
     }
@@ -248,8 +214,6 @@ fun AboutScreen(
 @Composable
 private fun AboutScreenPreview() {
     MyTvTheme {
-        AboutScreen(
-            latestVersionProvider = { "9.0.0" },
-        )
+        AboutScreen()
     }
 }

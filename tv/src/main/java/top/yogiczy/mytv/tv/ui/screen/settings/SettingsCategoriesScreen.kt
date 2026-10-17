@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.DisplaySettings
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SmartDisplay
-import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -200,7 +199,6 @@ enum class SettingsCategories(
     UI(Icons.Outlined.DisplaySettings, "界面"),
     CONTROL(Icons.Outlined.ControlCamera, "控制"),
     VIDEO_PLAYER(Icons.Outlined.SmartDisplay, "播放器"),
-    UPDATE(Icons.Outlined.Update, "更新"),
 
     // FAVORITE(Icons.Outlined.FavoriteBorder, "收藏"),
     // EPG_RESERVE(Icons.Default.BookmarkBorder, "预约"),
@@ -227,7 +225,6 @@ enum class SettingsSubCategories {
     VIDEO_PLAYER_RENDER_MODE,
     VIDEO_PLAYER_DISPLAY_MODE,
     VIDEO_PLAYER_LOAD_TIMEOUT,
-    UPDATE_CHANNEL,
     CLOUD_SYNC_PROVIDER,
 }
 

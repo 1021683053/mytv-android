@@ -41,15 +41,6 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
-    private var _appLastLatestVersion by mutableStateOf("")
-    var appLastLatestVersion: String
-        get() = _appLastLatestVersion
-        set(value) {
-            _appLastLatestVersion = value
-            Configs.appLastLatestVersion = value
-            afterSetWhenCloudSyncAutoPull()
-        }
-
     private var _appAgreementAgreed by mutableStateOf(false)
     var appAgreementAgreed: Boolean
         get() = _appAgreementAgreed
@@ -401,24 +392,6 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
-    private var _updateForceRemind by mutableStateOf(false)
-    var updateForceRemind: Boolean
-        get() = _updateForceRemind
-        set(value) {
-            _updateForceRemind = value
-            Configs.updateForceRemind = value
-            afterSetWhenCloudSyncAutoPull()
-        }
-
-    private var _updateChannel by mutableStateOf("")
-    var updateChannel: String
-        get() = _updateChannel
-        set(value) {
-            _updateChannel = value
-            Configs.updateChannel = value
-            afterSetWhenCloudSyncAutoPull()
-        }
-
     private var _videoPlayerCore by mutableStateOf(Configs.VideoPlayerCore.MEDIA3)
     var videoPlayerCore: Configs.VideoPlayerCore
         get() = _videoPlayerCore
@@ -624,7 +597,6 @@ class SettingsViewModel : ViewModel() {
     fun refresh() {
         _appBootLaunch = Configs.appBootLaunch
         _appPipEnable = Configs.appPipEnable
-        _appLastLatestVersion = Configs.appLastLatestVersion
         _appAgreementAgreed = Configs.appAgreementAgreed
         _appStartupScreen = Configs.appStartupScreen
         _debugDeveloperMode = Configs.debugDeveloperMode
@@ -664,8 +636,6 @@ class SettingsViewModel : ViewModel() {
         _uiTimeShowMode = Configs.uiTimeShowMode
         _uiFocusOptimize = Configs.uiFocusOptimize
         _uiScreenAutoCloseDelay = Configs.uiScreenAutoCloseDelay
-        _updateForceRemind = Configs.updateForceRemind
-        _updateChannel = Configs.updateChannel
         _videoPlayerCore = Configs.videoPlayerCore
         _videoPlayerRenderMode = Configs.videoPlayerRenderMode
         _videoPlayerUserAgent = Configs.videoPlayerUserAgent

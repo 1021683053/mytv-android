@@ -29,9 +29,6 @@ object Configs {
         /** 画中画启用 */
         APP_PIP_ENABLE,
 
-        /** 上一次最新版本 */
-        APP_LAST_LATEST_VERSION,
-
         /** 协议已同意 */
         APP_AGREEMENT_AGREED,
 
@@ -153,13 +150,6 @@ object Configs {
         /** 自动关闭界面延时 */
         UI_SCREEN_AUTO_CLOSE_DELAY,
 
-        /** ==================== 更新 ==================== */
-        /** 更新强提醒 */
-        UPDATE_FORCE_REMIND,
-
-        /** 更新通道 */
-        UPDATE_CHANNEL,
-
         /** ==================== 播放器 ==================== */
         /** 播放器 内核 */
         VIDEO_PLAYER_CORE,
@@ -240,11 +230,6 @@ object Configs {
     var appPipEnable: Boolean
         get() = SP.getBoolean(KEY.APP_PIP_ENABLE.name, false)
         set(value) = SP.putBoolean(KEY.APP_PIP_ENABLE.name, value)
-
-    /** 上一次最新版本 */
-    var appLastLatestVersion: String
-        get() = SP.getString(KEY.APP_LAST_LATEST_VERSION.name, "")
-        set(value) = SP.putString(KEY.APP_LAST_LATEST_VERSION.name, value)
 
     /** 协议已同意 */
     var appAgreementAgreed: Boolean
@@ -481,17 +466,6 @@ object Configs {
             SP.getLong(KEY.UI_SCREEN_AUTO_CLOSE_DELAY.name, Constants.UI_SCREEN_AUTO_CLOSE_DELAY)
         set(value) = SP.putLong(KEY.UI_SCREEN_AUTO_CLOSE_DELAY.name, value)
 
-    /** ==================== 更新 ==================== */
-    /** 更新强提醒 */
-    var updateForceRemind: Boolean
-        get() = SP.getBoolean(KEY.UPDATE_FORCE_REMIND.name, false)
-        set(value) = SP.putBoolean(KEY.UPDATE_FORCE_REMIND.name, value)
-
-    /** 更新通道 */
-    var updateChannel: String
-        get() = SP.getString(KEY.UPDATE_CHANNEL.name, "stable")
-        set(value) = SP.putString(KEY.UPDATE_CHANNEL.name, value)
-
     /** ==================== 播放器 ==================== */
     /** 播放器 内核 */
     var videoPlayerCore: VideoPlayerCore
@@ -689,7 +663,6 @@ object Configs {
         return Partial(
             appBootLaunch = appBootLaunch,
             appPipEnable = appPipEnable,
-            appLastLatestVersion = appLastLatestVersion,
             appAgreementAgreed = appAgreementAgreed,
             appStartupScreen = appStartupScreen,
             debugDeveloperMode = debugDeveloperMode,
@@ -729,8 +702,6 @@ object Configs {
             uiTimeShowMode = uiTimeShowMode,
             uiFocusOptimize = uiFocusOptimize,
             uiScreenAutoCloseDelay = uiScreenAutoCloseDelay,
-            updateForceRemind = updateForceRemind,
-            updateChannel = updateChannel,
             videoPlayerCore = videoPlayerCore,
             videoPlayerRenderMode = videoPlayerRenderMode,
             videoPlayerUserAgent = videoPlayerUserAgent,
@@ -759,7 +730,6 @@ object Configs {
     fun fromPartial(configs: Partial) {
         configs.appBootLaunch?.let { appBootLaunch = it }
         configs.appPipEnable?.let { appPipEnable = it }
-        configs.appLastLatestVersion?.let { appLastLatestVersion = it }
         configs.appAgreementAgreed?.let { appAgreementAgreed = it }
         configs.appStartupScreen?.let { appStartupScreen = it }
         configs.debugDeveloperMode?.let { debugDeveloperMode = it }
@@ -801,8 +771,6 @@ object Configs {
         configs.uiTimeShowMode?.let { uiTimeShowMode = it }
         configs.uiFocusOptimize?.let { uiFocusOptimize = it }
         configs.uiScreenAutoCloseDelay?.let { uiScreenAutoCloseDelay = it }
-        configs.updateForceRemind?.let { updateForceRemind = it }
-        configs.updateChannel?.let { updateChannel = it }
         configs.videoPlayerCore?.let { videoPlayerCore = it }
         configs.videoPlayerRenderMode?.let { videoPlayerRenderMode = it }
         configs.videoPlayerUserAgent?.let { videoPlayerUserAgent = it }
@@ -830,7 +798,6 @@ object Configs {
     data class Partial(
         val appBootLaunch: Boolean? = null,
         val appPipEnable: Boolean? = null,
-        val appLastLatestVersion: String? = null,
         val appAgreementAgreed: Boolean? = null,
         val appStartupScreen: String? = null,
         val debugDeveloperMode: Boolean? = null,
@@ -870,8 +837,6 @@ object Configs {
         val uiTimeShowMode: UiTimeShowMode? = null,
         val uiFocusOptimize: Boolean? = null,
         val uiScreenAutoCloseDelay: Long? = null,
-        val updateForceRemind: Boolean? = null,
-        val updateChannel: String? = null,
         val videoPlayerCore: VideoPlayerCore? = null,
         val videoPlayerRenderMode: VideoPlayerRenderMode? = null,
         val videoPlayerUserAgent: String? = null,

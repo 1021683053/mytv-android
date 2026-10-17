@@ -4,15 +4,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import top.yogiczy.mytv.core.data.entities.channel.Channel
 import top.yogiczy.mytv.core.data.entities.channel.ChannelFavorite
 import top.yogiczy.mytv.core.data.entities.channel.ChannelFavoriteList
@@ -20,7 +17,6 @@ import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList.Companion.chanelGroup
 import top.yogiczy.mytv.core.data.entities.channel.ChannelList
 import top.yogiczy.mytv.core.data.entities.epg.EpgList
-import top.yogiczy.mytv.tv.BuildConfig
 import top.yogiczy.mytv.tv.ui.material.Snackbar
 import top.yogiczy.mytv.tv.ui.rememberDoubleBackPressedExitState
 import top.yogiczy.mytv.tv.ui.screen.Screens
@@ -37,20 +33,15 @@ import top.yogiczy.mytv.tv.ui.screen.settings.SettingsScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsSubCategories
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsViewModel
 import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
-import top.yogiczy.mytv.tv.ui.screen.update.UpdateScreen
-import top.yogiczy.mytv.tv.ui.screen.update.UpdateViewModel
-import top.yogiczy.mytv.tv.ui.screen.update.updateVM
 import top.yogiczy.mytv.tv.ui.utils.navigateSingleTop
 
 @Composable
 fun MainScreen(
     modifier: Modifier = Modifier,
     settingsViewModel: SettingsViewModel = settingsVM,
-    updateViewModel: UpdateViewModel = updateVM,
     mainViewModel: MainViewModel = mainVM,
     onBackPressed: () -> Unit = {},
 ) {
-    val coroutineScope = rememberCoroutineScope()
     val uiState by mainViewModel.uiState.collectAsState()
 
     mainViewModel.needRefresh = { settingsViewModel.refresh() }
@@ -105,30 +96,6 @@ fun MainScreen(
         Snackbar.show("已清空所有收藏")
     }
 
-    fun checkUpdate(quiet: Boolean = true) {
-        coroutineScope.launch {
-            if (!quiet) Snackbar.show("正在检查更新...", leadingLoading = true, duration = 5000)
-
-            delay(3000)
-            updateViewModel.checkUpdate(BuildConfig.VERSION_NAME, settingsViewModel.updateChannel)
-
-            if (!quiet) {
-                if (updateViewModel.isUpdateAvailable) Snackbar.show("发现新版本: v${updateViewModel.latestRelease.version}")
-                else Snackbar.show("当前已是最新版本")
-            }
-
-            if (!updateViewModel.isUpdateAvailable) return@launch
-            if (settingsViewModel.appLastLatestVersion == updateViewModel.latestRelease.version) return@launch
-
-            settingsViewModel.appLastLatestVersion = updateViewModel.latestRelease.version
-            if (settingsViewModel.updateForceRemind) {
-                navController.navigateSingleTop(Screens.Update())
-            } else {
-                if (quiet) Snackbar.show("发现新版本: v${updateViewModel.latestRelease.version}")
-            }
-        }
-    }
-
     fun reload() {
         settingsViewModel.refresh()
         mainViewModel.init()
@@ -158,7 +125,6 @@ fun MainScreen(
                     toDashboardScreen = {
                         navController.navigateUp()
                         navController.navigateSingleTop(settingsViewModel.appStartupScreen)
-                        checkUpdate()
                     },
                     toSettingsScreen = { navController.navigateSingleTop(Screens.Settings()) },
                     onBackPressed = onBackPressed,
@@ -276,7 +242,6 @@ fun MainScreen(
                         else startDestination
                     },
                     channelGroupListProvider = channelGroupListProvider,
-                    onCheckUpdate = { checkUpdate(false) },
                     onReload = { reload() },
                     onBackPressed = { navController.navigateUp() },
                 )
@@ -284,14 +249,6 @@ fun MainScreen(
 
             composable(Screens.About()) {
                 AboutScreen(
-                    latestVersionProvider = { updateViewModel.latestRelease.version },
-                    toUpdateScreen = { navController.navigateSingleTop(Screens.Update()) },
-                    onBackPressed = { navController.navigateUp() },
-                )
-            }
-
-            composable(Screens.Update()) {
-                UpdateScreen(
                     onBackPressed = { navController.navigateUp() },
                 )
             }

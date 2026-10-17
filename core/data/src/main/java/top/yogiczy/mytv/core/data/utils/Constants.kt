@@ -71,20 +71,6 @@ object Constants {
     const val CHANNEL_LOGO_PROVIDER = "https://live.fanmingming.com/tv/{name|uppercase}.png"
 
     /**
-     * GitHub加速代理地址
-     */
-    const val GITHUB_PROXY = "https://ghp.ci/"
-
-    /**
-     * Git最新版本信息
-     */
-    val GIT_RELEASE_LATEST_URL = mapOf(
-        "stable" to "${GITHUB_PROXY}https://raw.githubusercontent.com/yaoxieyoulei/mytv-android-update/main/tv-stable.json",
-        "beta" to "${GITHUB_PROXY}https://raw.githubusercontent.com/yaoxieyoulei/mytv-android-update/main/tv-beta.json",
-        "dev" to "${GITHUB_PROXY}https://raw.githubusercontent.com/yaoxieyoulei/mytv-android-update/main/tv-dev.json",
-    )
-
-    /**
      * 网络请求重试次数
      */
     const val NETWORK_RETRY_COUNT = 10L
