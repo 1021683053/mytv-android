@@ -3,10 +3,10 @@
 <div align="center">
 
 
-![GitHub Repo stars](https://img.shields.io/github/stars/yaoxieyoulei/mytv-android)
-![GitHub all releases](https://img.shields.io/github/downloads/yaoxieyoulei/mytv-android/total)
+![GitHub Repo stars](https://img.shields.io/github/stars/1021683053/mytv-android)
+![GitHub all releases](https://img.shields.io/github/downloads/1021683053/mytv-android/total)
 [![Android Sdk Require](https://img.shields.io/badge/Android-5.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2021%20or%20higher)
-[![GitHub](https://img.shields.io/github/license/yaoxieyoulei/mytv-android)](https://github.com/yaoxieyoulei/mytv-android)
+[![GitHub](https://img.shields.io/github/license/1021683053/mytv-android)](https://github.com/1021683053/mytv-android)
 
 </div>
     <p>使用Android原生开发的电视直播软件</p>
