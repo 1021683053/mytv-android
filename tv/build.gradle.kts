@@ -18,7 +18,7 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "tech.swhale.chinaiptv.tv"
+        applicationId = "com.chinablue.tv"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 2
@@ -81,7 +81,6 @@ android {
 
         create("disguised") {
             dimension = "version"
-            applicationId = "tech.swhale.chinaiptv.tvdisguise"
         }
     }
 

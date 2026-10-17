@@ -15,7 +15,7 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "tech.swhale.chinaiptv.mobile"
+        applicationId = "com.chinablue.mobile"
         minSdk = 24
         targetSdk = libs.versions.compileSdk.get().toInt()
         versionCode = 1
