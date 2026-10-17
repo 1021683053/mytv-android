@@ -59,14 +59,6 @@ Telegram: https://t.me/mytv_android
 
 <img src="./screenshots/mm_reward_qrcode.png" width="48%"/>
 
-## 技术交流
-
-Telegram: https://t.me/mytv_android
-
-## 赞赏
-
-<img src="./screenshots/mm_reward_qrcode.png" width="48%"/>
-
 ## 致谢
 
 - [my-tv](https://github.com/lizongying/my-tv)
