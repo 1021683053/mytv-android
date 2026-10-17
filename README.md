@@ -1,5 +1,5 @@
 <div align="center">
-    <h1>天光云影</h1>
+    <h1>电视直播（china-iptv）</h1>
 
 [![Android Sdk Require](https://img.shields.io/badge/Android-5.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2021%20or%20higher)
 
@@ -51,7 +51,7 @@
 
 ## 声明
 
-此项目（天光云影）是个人为了兴趣而开发，仅用于学习和测试。所用API皆从官方网站收集，不提供任何破解内容。
+此项目（电视直播 / china-iptv）是个人为了兴趣而开发，仅用于学习和测试。所用API皆从官方网站收集，不提供任何破解内容。
 
 ## 致谢
 

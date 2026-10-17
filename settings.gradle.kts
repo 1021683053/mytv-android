@@ -21,7 +21,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "天光云影v3.3"
+rootProject.name = "china-iptv"
 
 include(":core:data")
 include(":core:util")
