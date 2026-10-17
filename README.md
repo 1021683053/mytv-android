@@ -1,19 +1,25 @@
 <div align="center">
     <h1>天光云影</h1>
-<div align="center">
 
-![GitHub Repo stars](https://img.shields.io/github/stars/yaoxieyoulei/mytv-android)
-![GitHub all releases](https://img.shields.io/github/downloads/yaoxieyoulei/mytv-android/total)
 [![Android Sdk Require](https://img.shields.io/badge/Android-5.0%2B-informational?logo=android)](https://apilevels.com/#:~:text=Jetpack%20Compose%20requires%20a%20minSdk%20of%2021%20or%20higher)
-[![GitHub](https://img.shields.io/github/license/yaoxieyoulei/mytv-android)](https://github.com/yaoxieyoulei/mytv-android)
 
-</div>
-    <p>使用Android原生开发的视频播放软件</p>
+    <p>使用 Android 原生（Kotlin + Jetpack Compose）开发的 IPTV 直播播放软件</p>
 </div>
 
-## 使用
+## 功能
 
-### 操作方式
+- **电视直播**：通过订阅 IPTV 直播源观看电视频道，支持多线路切换
+- **多格式源解析**：支持 M3U、TXT、TVBox 等常见直播源格式
+- **节目单（EPG）**：显示频道节目预告，支持多天节目单与预约
+- **多播放内核**：Media3/ExoPlayer（HLS、RTSP、DASH）、IJKPlayer、WebView 直播源
+- **频道收藏**：收藏常用频道，快速访问
+- **频道搜索**：按名称搜索频道
+- **多画面**：支持多频道同时观看
+- **网页自定义设置**：局域网内访问 `http://<设备IP>:10481` 配置订阅源等
+- **云同步**：通过 GitHub/Gitee Gist、WebDAV 等同步配置
+- **主题与界面**：多种主题、经典/新版界面切换、密度与字体缩放
+
+## 操作方式
 
 > 遥控器操作方式与主流视频播放软件类似；
 
@@ -29,19 +35,15 @@
 - 长按OK键：长按屏幕
 - 菜单、帮助键：双击屏幕
 
-### 自定义设置
-
-- 访问以下网址：`http://<设备IP>:10481`
-
-## 下载
-
-可以通过右侧release进行下载或拉取代码到本地进行编译
-
 ## 说明
 
-- 仅支持Android5及以上
-- 网络环境必须支持IPV6（默认订阅源）
-- 只在自家电视上测过，其他电视稳定性未知
+- 仅支持 Android 5 及以上
+- 网络环境必须支持 IPv6（默认订阅源）
+- 仅在部分电视设备上测试过，其他设备稳定性未知
+
+## 构建
+
+推送 `v*` 格式的 tag 即可通过 GitHub Actions 自动打包 APK，构建完成后在 Actions 页面下载。
 
 ## 更新日志
 
@@ -49,15 +51,7 @@
 
 ## 声明
 
-此项目（天光云影）是个人为了兴趣而开发, 仅用于学习和测试。 所用API皆从官方网站收集, 不提供任何破解内容。
-
-## 技术交流
-
-Telegram: https://t.me/mytv_android
-
-## 赞赏
-
-<img src="./screenshots/mm_reward_qrcode.png" width="48%"/>
+此项目（天光云影）是个人为了兴趣而开发，仅用于学习和测试。所用API皆从官方网站收集，不提供任何破解内容。
 
 ## 致谢
 
