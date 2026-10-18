@@ -37,6 +37,7 @@ import top.yogiczy.mytv.core.data.entities.epg.EpgProgramme.Companion.progress
 import top.yogiczy.mytv.core.data.entities.epg.EpgProgrammeRecent
 import top.yogiczy.mytv.tv.ui.screen.channels.components.ChannelsChannelItemLogo
 import top.yogiczy.mytv.tv.ui.screen.channels.components.rememberEpgProgrammeRecent
+import top.yogiczy.mytv.tv.ui.screen.settings.settingsVM
 import top.yogiczy.mytv.tv.ui.theme.MyTvTheme
 import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
 import top.yogiczy.mytv.tv.ui.utils.ifElse
@@ -120,7 +121,7 @@ fun ChannelItem(
 
                 Box(
                     modifier = Modifier
-                        .height(53.dp)
+                        .height(if (settingsVM.epgEnable) 53.dp else 32.dp)
                         .background(containerColor)
                 ) {
                     ChannelItemContent(
@@ -164,13 +165,15 @@ private fun ChannelItemContent(
             maxLines = 1,
             modifier = Modifier.ifElse(isFocused, Modifier.basicMarquee()),
         )
-        Text(
-            recentEpgProgramme?.now?.title ?: "",
-            style = MaterialTheme.typography.labelSmall.copy(LocalContentColor.current.copy(0.8f)),
-            maxLines = 1,
-            modifier = Modifier
-                .ifElse(isFocused, Modifier.basicMarquee()),
-        )
+        if (settingsVM.epgEnable) {
+            Text(
+                recentEpgProgramme?.now?.title ?: "",
+                style = MaterialTheme.typography.labelSmall.copy(LocalContentColor.current.copy(0.8f)),
+                maxLines = 1,
+                modifier = Modifier
+                    .ifElse(isFocused, Modifier.basicMarquee()),
+            )
+        }
     }
 }
 
@@ -186,7 +189,7 @@ private fun ChannelItemProgress(
     val isFocused = isFocusedProvider()
 
     recentEpgProgramme?.now?.let { nowProgramme ->
-        if (showEpgProgrammeProgress) {
+        if (settingsVM.epgEnable && showEpgProgrammeProgress) {
             Box(
                 modifier = modifier
                     .fillMaxWidth(nowProgramme.progress())

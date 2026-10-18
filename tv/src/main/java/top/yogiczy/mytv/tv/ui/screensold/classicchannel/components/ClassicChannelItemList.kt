@@ -294,7 +294,7 @@ private fun ClassicChannelItem(
                     .focusable()
                     .fillMaxWidth()
                     .background(containerColor, MaterialTheme.shapes.small)
-                    .defaultMinSize(minHeight = 56.dp)
+                    .defaultMinSize(minHeight = if (settingsVM.epgEnable) 56.dp else 32.dp)
                     .padding(horizontal = 12.dp, vertical = 4.dp)
                     .handleKeyEvents(
                         onSelect = onChannelSelected,
@@ -311,21 +311,23 @@ private fun ClassicChannelItem(
                             style = MaterialTheme.typography.titleSmall,
                         )
 
-                        Text(
-                            text = recentEpgProgramme?.now?.title ?: "",
-                            maxLines = 1,
-                            modifier = Modifier.ifElse(isFocused, Modifier.basicMarquee()),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                LocalContentColor.current.copy(
-                                    0.8f
-                                )
-                            ),
-                        )
+                        if (settingsVM.epgEnable) {
+                            Text(
+                                text = recentEpgProgramme?.now?.title ?: "",
+                                maxLines = 1,
+                                modifier = Modifier.ifElse(isFocused, Modifier.basicMarquee()),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    LocalContentColor.current.copy(
+                                        0.8f
+                                    )
+                                ),
+                            )
+                        }
                     }
                 }
             }
 
-            if (showEpgProgrammeProgress) {
+            if (settingsVM.epgEnable && showEpgProgrammeProgress) {
                 recentEpgProgramme?.now?.let { nnNowEpgProgramme ->
                     Box(
                         modifier = Modifier
