@@ -8,7 +8,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,18 +46,19 @@ fun SettingsCloudSyncScreen(
     debugInitialSyncData: CloudSyncData? = null,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var syncData by remember { mutableStateOf(debugInitialSyncData) }
+    // 进入页面不自动拉取，需手动点击"拉取云端"查看数据
+    var syncData by remember { mutableStateOf(debugInitialSyncData ?: CloudSyncData.EMPTY) }
+    var pullLoading by remember { mutableStateOf(false) }
 
     suspend fun pullSyncData() {
-        syncData = null
+        pullLoading = true
         runCatching { syncData = CloudSync.pull() }
             .onFailure {
                 Snackbar.show("拉取云端失败")
                 syncData = CloudSyncData.EMPTY
             }
+        pullLoading = false
     }
-
-    LaunchedEffect(Unit) { pullSyncData() }
 
     SettingsCategoryScreen(
         modifier = modifier,
@@ -69,7 +69,7 @@ fun SettingsCloudSyncScreen(
                     AppScaffoldHeaderBtn(
                         title = "拉取云端",
                         imageVector = Icons.Outlined.CloudDownload,
-                        loading = syncData == null,
+                        loading = pullLoading,
                         onSelect = { coroutineScope.launch { pullSyncData() } },
                     )
                 }
@@ -104,7 +104,7 @@ fun SettingsCloudSyncScreen(
                 headlineContent = "云端数据",
                 supportingContent = "长按应用当前云端数据",
                 trailingContent = {
-                    if (syncData == null) {
+                    if (pullLoading) {
                         return@SettingsListItem CircularProgressIndicator(
                             modifier = Modifier.size(22.dp),
                             color = LocalContentColor.current,
@@ -113,7 +113,7 @@ fun SettingsCloudSyncScreen(
                         )
                     }
 
-                    syncData?.let { nnSyncData ->
+                    syncData.let { nnSyncData ->
                         if (nnSyncData == CloudSyncData.EMPTY) {
                             Text("无云端数据")
                         } else {
@@ -132,7 +132,7 @@ fun SettingsCloudSyncScreen(
                     }
                 },
                 onLongSelect = {
-                    syncData?.let { nnSyncData ->
+                    syncData.let { nnSyncData ->
                         if (syncData != CloudSyncData.EMPTY) {
                             coroutineScope.launch {
                                 nnSyncData.apply()
