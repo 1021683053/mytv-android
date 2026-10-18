@@ -39,7 +39,6 @@
             android:exported="true"
             android:resizeableActivity="true"
             android:screenOrientation="sensorLandscape"
-            android:supportsPictureInPicture="true"
             tools:ignore="DiscouragedApi">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

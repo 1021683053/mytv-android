@@ -187,9 +187,7 @@ fun rememberVideoPlayerState(
     DisposableEffect(lifecycleOwner, videoPlayerCore) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) state.play()
-            else if (event == Lifecycle.Event.ON_STOP) {
-                if (!Configs.appPipEnable) state.pause()
-            }
+            else if (event == Lifecycle.Event.ON_STOP) state.pause()
         }
 
         lifecycleOwner.lifecycle.addObserver(observer)

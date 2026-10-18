@@ -1,10 +1,7 @@
 package top.yogiczy.mytv.tv
 
-import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
-import android.os.Build
 import android.os.Bundle
-import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,7 +11,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import top.yogiczy.mytv.tv.ui.App
 import top.yogiczy.mytv.tv.ui.theme.MyTvTheme
-import top.yogiczy.mytv.tv.ui.utils.Configs
 import top.yogiczy.mytv.tv.utlis.HttpServer
 import kotlin.system.exitProcess
 
@@ -51,15 +47,5 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         HttpServer.stopService(applicationContext)
         super.onDestroy()
-    }
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Configs.appPipEnable) {
-            val aspectRatio = Rational(16, 9)
-            val params = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
-            enterPictureInPictureMode(params)
-        }
     }
 }

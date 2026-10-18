@@ -26,9 +26,6 @@ object Configs {
         /** 开机自启 */
         APP_BOOT_LAUNCH,
 
-        /** 画中画启用 */
-        APP_PIP_ENABLE,
-
         /** 协议已同意 */
         APP_AGREEMENT_AGREED,
 
@@ -226,11 +223,6 @@ object Configs {
         get() = SP.getBoolean(KEY.APP_BOOT_LAUNCH.name, false)
         set(value) = SP.putBoolean(KEY.APP_BOOT_LAUNCH.name, value)
 
-    /** 画中画启用 */
-    var appPipEnable: Boolean
-        get() = SP.getBoolean(KEY.APP_PIP_ENABLE.name, false)
-        set(value) = SP.putBoolean(KEY.APP_PIP_ENABLE.name, value)
-
     /** 协议已同意 */
     var appAgreementAgreed: Boolean
         get() = SP.getBoolean(KEY.APP_AGREEMENT_AGREED.name, false)
@@ -238,7 +230,7 @@ object Configs {
 
     /** 起始界面 */
     var appStartupScreen: String
-        get() = SP.getString(KEY.APP_STARTUP_SCREEN.name, Screens.Dashboard.name)
+        get() = SP.getString(KEY.APP_STARTUP_SCREEN.name, Screens.Live.name)
         set(value) = SP.putString(KEY.APP_STARTUP_SCREEN.name, value)
 
     /** ==================== 调式 ==================== */
@@ -662,7 +654,6 @@ object Configs {
     fun toPartial(): Partial {
         return Partial(
             appBootLaunch = appBootLaunch,
-            appPipEnable = appPipEnable,
             appAgreementAgreed = appAgreementAgreed,
             appStartupScreen = appStartupScreen,
             debugDeveloperMode = debugDeveloperMode,
@@ -729,7 +720,6 @@ object Configs {
 
     fun fromPartial(configs: Partial) {
         configs.appBootLaunch?.let { appBootLaunch = it }
-        configs.appPipEnable?.let { appPipEnable = it }
         configs.appAgreementAgreed?.let { appAgreementAgreed = it }
         configs.appStartupScreen?.let { appStartupScreen = it }
         configs.debugDeveloperMode?.let { debugDeveloperMode = it }
@@ -797,7 +787,6 @@ object Configs {
     @Serializable
     data class Partial(
         val appBootLaunch: Boolean? = null,
-        val appPipEnable: Boolean? = null,
         val appAgreementAgreed: Boolean? = null,
         val appStartupScreen: String? = null,
         val debugDeveloperMode: Boolean? = null,

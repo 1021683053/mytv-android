@@ -70,18 +70,6 @@ fun SettingsAppScreen(
         }
 
         item {
-            SettingsListItem(
-                headlineContent = "画中画",
-                trailingContent = {
-                    Switch(settingsViewModel.appPipEnable, null)
-                },
-                onSelect = {
-                    settingsViewModel.appPipEnable = !settingsViewModel.appPipEnable
-                },
-            )
-        }
-
-        item {
             var totalSize by remember { mutableLongStateOf(0L) }
             LaunchedEffect(Unit) {
                 FsUtil.getDirSizeFlow(Globals.cacheDir).collect { totalSize = it }

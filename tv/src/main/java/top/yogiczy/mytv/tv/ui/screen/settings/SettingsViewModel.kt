@@ -32,15 +32,6 @@ class SettingsViewModel : ViewModel() {
             afterSetWhenCloudSyncAutoPull()
         }
 
-    private var _appPipEnable by mutableStateOf(false)
-    var appPipEnable: Boolean
-        get() = _appPipEnable
-        set(value) {
-            _appPipEnable = value
-            Configs.appPipEnable = value
-            afterSetWhenCloudSyncAutoPull()
-        }
-
     private var _appAgreementAgreed by mutableStateOf(false)
     var appAgreementAgreed: Boolean
         get() = _appAgreementAgreed
@@ -596,7 +587,6 @@ class SettingsViewModel : ViewModel() {
 
     fun refresh() {
         _appBootLaunch = Configs.appBootLaunch
-        _appPipEnable = Configs.appPipEnable
         _appAgreementAgreed = Configs.appAgreementAgreed
         _appStartupScreen = Configs.appStartupScreen
         _debugDeveloperMode = Configs.debugDeveloperMode
