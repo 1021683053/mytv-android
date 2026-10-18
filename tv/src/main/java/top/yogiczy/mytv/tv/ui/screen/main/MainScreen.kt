@@ -26,7 +26,6 @@ import top.yogiczy.mytv.tv.ui.screen.channels.ChannelsScreen
 import top.yogiczy.mytv.tv.ui.screen.dashboard.DashboardScreen
 import top.yogiczy.mytv.tv.ui.screen.favorites.FavoritesScreen
 import top.yogiczy.mytv.tv.ui.screen.loading.LoadingScreen
-import top.yogiczy.mytv.tv.ui.screen.multiview.MultiViewScreen
 import top.yogiczy.mytv.tv.ui.screen.push.PushScreen
 import top.yogiczy.mytv.tv.ui.screen.search.SearchScreen
 import top.yogiczy.mytv.tv.ui.screen.settings.SettingsScreen
@@ -141,7 +140,6 @@ fun MainScreen(
                     toChannelsScreen = { navController.navigateSingleTop(Screens.Channels()) },
                     toFavoritesScreen = { navController.navigateSingleTop(Screens.Favorites()) },
                     toSearchScreen = { navController.navigateSingleTop(Screens.Search()) },
-                    toMultiViewScreen = { navController.navigateSingleTop(Screens.MultiView()) },
                     toPushScreen = { navController.navigateSingleTop(Screens.Push()) },
                     toSettingsScreen = { navController.navigateSingleTop(Screens.Settings()) },
                     toAboutScreen = { navController.navigateSingleTop(Screens.About()) },
@@ -249,14 +247,6 @@ fun MainScreen(
 
             composable(Screens.About()) {
                 AboutScreen(
-                    onBackPressed = { navController.navigateUp() },
-                )
-            }
-
-            composable(Screens.MultiView()) {
-                MultiViewScreen(
-                    channelGroupListProvider = filteredChannelGroupListProvider,
-                    epgListProvider = epgListProvider,
                     onBackPressed = { navController.navigateUp() },
                 )
             }

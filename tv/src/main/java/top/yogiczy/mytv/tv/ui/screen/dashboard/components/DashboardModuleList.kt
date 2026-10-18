@@ -12,7 +12,6 @@ import androidx.compose.material.icons.outlined.InsertChart
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tv
-import androidx.compose.material.icons.outlined.ViewCozy
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
@@ -31,7 +30,6 @@ fun DashboardModuleList(
     toChannelsScreen: () -> Unit = {},
     toFavoritesScreen: () -> Unit = {},
     toSearchScreen: () -> Unit = {},
-    toMultiViewScreen: () -> Unit = {},
     toPushScreen: () -> Unit = {},
     toSettingsScreen: () -> Unit = {},
     toAboutScreen: () -> Unit = {},
@@ -75,14 +73,6 @@ fun DashboardModuleList(
                 imageVector = Icons.Outlined.Search,
                 title = "搜索",
                 onSelected = toSearchScreen,
-            )
-        }
-
-        item {
-            DashboardModuleItem(
-                imageVector = Icons.Outlined.ViewCozy,
-                title = "多屏同播",
-                onSelected = toMultiViewScreen,
             )
         }
 
