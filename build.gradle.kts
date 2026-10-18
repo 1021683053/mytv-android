@@ -29,13 +29,17 @@ allprojects {
                 ?: "keystore.jks"
             )
 
-            create("release") {
-                storeFile = if (userKeystore.exists()) userKeystore else localKeystore
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                    ?: keystoreProperties.getProperty("storePassword")
-                keyAlias = System.getenv("KEY_ALIAS") ?: keystoreProperties.getProperty("keyAlias")
-                keyPassword =
-                    System.getenv("KEY_PASSWORD") ?: keystoreProperties.getProperty("keyPassword")
+            // 密钥文件存在才创建签名配置，否则 release 构建为未签名包（CI 未配置密钥时不阻塞构建）
+            if (userKeystore.exists() || localKeystore.exists()) {
+                create("release") {
+                    storeFile = if (userKeystore.exists()) userKeystore else localKeystore
+                    storePassword = System.getenv("KEYSTORE_PASSWORD")
+                        ?: keystoreProperties.getProperty("storePassword")
+                    keyAlias = System.getenv("KEY_ALIAS")
+                        ?: keystoreProperties.getProperty("keyAlias")
+                    keyPassword =
+                        System.getenv("KEY_PASSWORD") ?: keystoreProperties.getProperty("keyPassword")
+                }
             }
         }
 
