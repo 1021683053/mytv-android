@@ -98,7 +98,11 @@ fun ChannelsChannelItem(
 
                 Box(
                     modifier = Modifier
-                        .height(56.dp)
+                        .ifElse(
+                            settingsVM.epgEnable,
+                            Modifier.height(56.dp),
+                            Modifier.height(32.dp),
+                        )
                         .background(containerColor)
                 ) {
                     ChannelsChannelItemContent(
@@ -269,14 +273,16 @@ private fun ChannelsChannelItemContent(
             modifier = Modifier.ifElse(isFocused, Modifier.basicMarquee()),
         )
 
-        Text(
-            recentEpgProgramme?.now?.title ?: "",
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.labelSmall.copy(LocalContentColor.current.copy(0.8f)),
-            modifier = Modifier
-                .ifElse(isFocused, Modifier.basicMarquee()),
-        )
+        if (settingsVM.epgEnable) {
+            Text(
+                recentEpgProgramme?.now?.title ?: "",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.labelSmall.copy(LocalContentColor.current.copy(0.8f)),
+                modifier = Modifier
+                    .ifElse(isFocused, Modifier.basicMarquee()),
+            )
+        }
     }
 }
 
@@ -302,6 +308,10 @@ private fun ChannelsChannelItemProgress(
 @Composable
 fun rememberEpgProgrammeRecent(provider: () -> EpgProgrammeRecent? = { null }): EpgProgrammeRecent? {
     var recentEpgProgramme by remember { mutableStateOf<EpgProgrammeRecent?>(null) }
+
+    // 节目单未启用时不启动轮询协程
+    if (!settingsVM.epgEnable) return recentEpgProgramme
+
     LaunchedEffect(provider) {
         while (true) {
             recentEpgProgramme = EpgList.action(provider)

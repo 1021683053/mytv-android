@@ -18,8 +18,8 @@ android {
         applicationId = "com.chinablue.tv"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 3
-        versionName = "3.3.11"
+        versionCode = 4
+        versionName = "3.3.12"
         vectorDrawables {
             useSupportLibrary = true
         }
