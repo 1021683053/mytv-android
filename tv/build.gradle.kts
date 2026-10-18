@@ -1,13 +1,10 @@
 import com.android.build.gradle.internal.dsl.BaseAppModuleExtension
-import java.io.FileInputStream
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.sentry.android.gradle)
 }
 
 android {
@@ -26,8 +23,6 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-
-        buildConfigField("String", "SENTRY_DSN", "\"${getProperty("sentry.dsn") ?: ""}\"")
     }
 
     buildTypes {
@@ -154,24 +149,4 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
-}
-
-sentry {
-    org.set("yogiczy")
-    projectName.set("mytv-android")
-    authToken.set(getProperty("sentry.auth_token") ?: System.getenv("SENTRY_AUTH_TOKEN"))
-    ignoredBuildTypes.set(setOf("debug"))
-    autoUploadProguardMapping = false
-}
-
-fun getProperty(key: String): String? {
-    val propertiesFile = rootProject.file("local.properties")
-    if (propertiesFile.exists()) {
-        val properties = Properties()
-        properties.load(FileInputStream(propertiesFile))
-
-        return properties.getProperty(key)
-    }
-
-    return null
 }

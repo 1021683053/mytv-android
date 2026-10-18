@@ -52,10 +52,16 @@ class MainViewModel : ViewModel() {
 
     init {
         viewModelScope.launch {
-            pullCloudSyncData()
             init()
             _lastJob?.join()
             refreshOtherIptvSource()
+        }
+
+        // 云同步拉取不阻塞启动：先展示本地缓存，云端数据到位后再刷新
+        if (Configs.cloudSyncAutoPull) {
+            viewModelScope.launch {
+                pullCloudSyncData()
+            }
         }
     }
 
@@ -70,14 +76,13 @@ class MainViewModel : ViewModel() {
     }
 
     private suspend fun pullCloudSyncData() {
-        if (!Configs.cloudSyncAutoPull) return
-
-        _uiState.value = MainUiState.Loading("拉取云端数据")
         runCatching {
             val syncData = CloudSync.pull()
 
             if (syncData != CloudSyncData.EMPTY) {
                 syncData.apply()
+                init()
+                _lastJob?.join()
                 needRefresh()
             }
         }

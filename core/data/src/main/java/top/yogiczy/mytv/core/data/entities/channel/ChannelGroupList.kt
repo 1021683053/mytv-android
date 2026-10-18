@@ -42,11 +42,14 @@ data class ChannelGroupList(
             get() = ChannelList(this.asSequence().flatMap { it.channelList.asSequence() }.toList())
     }
 
-    fun withMetadata() = ChannelGroupList(map { group ->
+    fun withMetadata(): ChannelGroupList {
+        // 索引表只构建一次，避免每个分组重复遍历全部频道
         val channelIndexMap = channelList.withIndex().associate { it.value to it.index }
 
-        group.copy(channelList = ChannelList(group.channelList.map { channel ->
-            channel.copy(index = channelIndexMap[channel] ?: -1)
-        }))
-    })
+        return ChannelGroupList(map { group ->
+            group.copy(channelList = ChannelList(group.channelList.map { channel ->
+                channel.copy(index = channelIndexMap[channel] ?: -1)
+            }))
+        })
+    }
 }

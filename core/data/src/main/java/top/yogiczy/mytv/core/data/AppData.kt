@@ -13,6 +13,11 @@ object AppData {
         Globals.fileDir = context.filesDir
         Globals.nativeLibraryDir = File(context.applicationInfo.nativeLibraryDir)
         Globals.resources = context.resources
+
+        Globals.deviceId = runCatching {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: ""
+        }.getOrDefault("")
+
         Globals.deviceName = runCatching {
             if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.S) {
                 Settings.Secure.getString(context.contentResolver, "bluetooth_name")!!
