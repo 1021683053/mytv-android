@@ -10,6 +10,9 @@ on:
         description: 'Tag to release (e.g. v1.2.3)'
         required: true
 
+permissions:
+  contents: write
+
 # media3 说明：
 # media3 由本地 fork (minyoad/media) 导出为预编译 AAR 并随仓库提交（tv/libs/media3-*.aar），
 # 构建无需再检出外部 media3 源码，本仓库完全自包含。
