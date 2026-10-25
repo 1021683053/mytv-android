@@ -71,6 +71,7 @@ fun ClassicChannelScreen(
     showChannelLogoProvider: () -> Boolean = { false },
     onChannelSelected: (Channel) -> Unit = {},
     onChannelFavoriteToggle: (Channel) -> Unit = {},
+    epgEnabledProvider: () -> Boolean = { true },
     epgListProvider: () -> EpgList = { EpgList() },
     epgProgrammeReserveListProvider: () -> EpgProgrammeReserveList = { EpgProgrammeReserveList() },
     showEpgProgrammeProgressProvider: () -> Boolean = { false },
@@ -112,9 +113,14 @@ fun ClassicChannelScreen(
             ?: ChannelGroup()
     }
 
+    val epgEnabled = epgEnabledProvider()
     var focusedChannelGroup by remember { mutableStateOf(initialChannelGroup) }
     var focusedChannel by remember { mutableStateOf(currentChannelProvider()) }
     var epgListVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(epgEnabled) {
+        if (!epgEnabled) epgListVisible = false
+    }
 
     // 💡 数据刷新/过滤变化时，通过名称同步本地选中的分组与频道实例，防止引用过期。
     // 若原分组已不存在（被过滤掉或换源），回退到第一个非空分组，避免频道列变空。
@@ -177,10 +183,10 @@ fun ClassicChannelScreen(
                     .onSizeChanged { channelListWidth = it.width }
                     .focusProperties {
                         exit = {
-                            if (epgListVisible && it == FocusDirection.Left) {
+                            if (epgEnabled && epgListVisible && it == FocusDirection.Left) {
                                 epgListVisible = false
                                 FocusRequester.Cancel
-                            } else if (!epgListVisible && it == FocusDirection.Right) {
+                            } else if (epgEnabled && !epgListVisible && it == FocusDirection.Right) {
                                 epgListVisible = true
                                 FocusRequester.Cancel
                             } else {
@@ -201,7 +207,7 @@ fun ClassicChannelScreen(
                 showChannelLogoProvider = showChannelLogoProvider,
             )
 
-            Visible({ epgListVisible }) {
+            Visible({ epgEnabled && epgListVisible }) {
                 val currentEpgList = epgListProvider()
                 // 💡 优化：使用 derivedStateOf，当 focusedChannel 改变时，仅重新计算值，不触发当前作用域重组
                 val matchedEpgList by remember(currentEpgList) {
@@ -232,7 +238,7 @@ fun ClassicChannelScreen(
                     onUserAction = { screenAutoCloseState.active() },
                 )
             }
-            Visible({ !epgListVisible }) {
+            Visible({ epgEnabled && !epgListVisible }) {
                 ClassicPanelScreenShowEpgTip(
                     modifier = Modifier
                         .background(MaterialTheme.colorScheme.surface.copy(0.7f))

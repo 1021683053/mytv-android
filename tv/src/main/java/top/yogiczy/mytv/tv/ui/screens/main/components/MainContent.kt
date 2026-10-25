@@ -447,6 +447,7 @@ fun MainContent(
                     .filter { favoriteChannelNameList.contains(it.name) })
             },
             showChannelLogoProvider = { settingsViewModel.uiShowChannelLogo },
+            epgEnabledProvider = { settingsViewModel.epgEnable },
             onChannelSelected = {
                 mainContentState.isChannelScreenVisible = false
                 mainContentState.changeCurrentChannel(it)

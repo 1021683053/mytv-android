@@ -56,7 +56,6 @@ fun MainScreen(
 ) {
     val uiState by mainViewModel.uiState.collectAsState()
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    val context = androidx.compose.ui.platform.LocalContext.current
 
     // 首次启动时，若未手动设置省份，则根据当前IP自动解析
     LaunchedEffect(Unit) {
@@ -65,13 +64,6 @@ fun MainScreen(
             if (province != null && settingsViewModel.iptvProvinceCurrent.isBlank()) {
                 settingsViewModel.iptvProvinceCurrent = province
             }
-        }
-    }
-
-    LaunchedEffect(uiState) {
-        val s = uiState
-        if (s is MainUiState.Ready) {
-            mainViewModel.preloadLogos(context, s.channelGroupList)
         }
     }
 

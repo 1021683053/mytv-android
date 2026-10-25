@@ -1,11 +1,8 @@
 package top.yogiczy.mytv.tv.ui.screens.main
 
 import android.app.Application
-import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import coil.imageLoader
-import top.yogiczy.mytv.tv.ui.screens.channel.components.channelLogoImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -95,19 +92,6 @@ class MainViewModel(
             }
 
             probeIptvs()
-        }
-    }
-
-    fun preloadLogos(context: Context, channelGroupList: ChannelGroupList) {
-        if (!Configs.uiShowChannelLogo) return
-
-        viewModelScope.launch(Dispatchers.IO) {
-            channelGroupList.channelList.forEach { channel ->
-                val logo = channel.logo
-                if (!logo.isNullOrBlank()) {
-                    context.imageLoader.enqueue(channelLogoImageRequest(context, logo))
-                }
-            }
         }
     }
 
