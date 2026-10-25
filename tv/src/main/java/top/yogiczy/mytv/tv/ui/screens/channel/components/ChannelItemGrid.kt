@@ -93,7 +93,10 @@ fun ChannelItemGrid(
                 bottom = childPadding.bottom,
             ),
         ) {
-            itemsIndexed(channelList) { index, channel ->
+            itemsIndexed(
+                items = channelList,
+                key = { _, channel -> channel.name + channel.urlList.firstOrNull() },
+            ) { index, channel ->
                 ChannelItem(
                     modifier = Modifier.ifElse(
                         index < gridSize,

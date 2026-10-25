@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
 
@@ -16,7 +15,7 @@ object ApkInstaller {
         if (!file.exists()) {
             // 修复：之前静默失败，导致用户以为"下载完成但没触发安装"，实际是文件丢失。
             // 这里打日志方便排查，调用方应已做"文件存在性"判断。
-            Log.w(TAG, "APK 文件不存在: $filePath")
+            if (LogGate.enabled) android.util.Log.w(TAG, "APK 文件不存在: $filePath")
             return
         }
 

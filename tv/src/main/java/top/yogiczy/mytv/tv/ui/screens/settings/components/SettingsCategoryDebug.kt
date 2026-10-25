@@ -16,6 +16,19 @@ fun SettingsCategoryDebug(
         item {
             SettingsListItem(
                 modifier = Modifier.focusRequester(it),
+                headlineContent = "输出日志",
+                supportingContent = "关闭后不打印应用、台标和播放器日志",
+                trailingContent = {
+                    Switch(settingsViewModel.debugLog, null)
+                },
+                onSelected = {
+                    settingsViewModel.debugLog = !settingsViewModel.debugLog
+                },
+            )
+        }
+
+        item {
+            SettingsListItem(
                 headlineContent = "显示FPS",
                 supportingContent = "在屏幕左上角显示fps和柱状图",
                 trailingContent = {

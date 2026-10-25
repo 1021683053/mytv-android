@@ -22,10 +22,41 @@ data class EpgList(
                 }
             }
 
+        private class RecentEntry(
+            val epg: Epg,
+            val recent: EpgProgrammeRecent,
+            val validUntil: Long,
+        )
+
+        private val recentCache =
+            object : LinkedHashMap<String, RecentEntry>(128, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, RecentEntry>?): Boolean {
+                    return size > 1024
+                }
+            }
+
         fun EpgList.recentProgramme(channel: Channel): EpgProgrammeRecent? {
             if (isEmpty()) return null
 
-            return match(channel)?.recentProgramme()
+            val epg = match(channel) ?: return null
+            val now = System.currentTimeMillis()
+            synchronized(recentCache) {
+                val cached = recentCache[channel.epgName]
+                if (cached != null && cached.epg === epg && now < cached.validUntil) {
+                    return cached.recent
+                }
+            }
+
+            val recent = epg.recentProgramme()
+            val validUntil = when {
+                recent.now != null && recent.now.endAt > now -> recent.now.endAt
+                recent.next != null && recent.next.startAt > now -> recent.next.startAt
+                else -> now + 60_000L
+            }
+            synchronized(recentCache) {
+                recentCache[channel.epgName] = RecentEntry(epg, recent, validUntil)
+            }
+            return recent
         }
 
         fun EpgList.match(channel: Channel): Epg? {
@@ -39,6 +70,9 @@ data class EpgList(
 
         fun clearCache() {
             matchCache.clear()
+            synchronized(recentCache) {
+                recentCache.clear()
+            }
         }
 
         fun example(channelList: ChannelList): EpgList {

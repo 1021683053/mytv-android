@@ -204,6 +204,7 @@ object HttpServer : Loggable() {
                         debugShowFps = Configs.debugShowFps,
                         debugShowVideoPlayerMetadata = Configs.debugShowVideoPlayerMetadata,
                         debugShowLayoutGrids = Configs.debugShowLayoutGrids,
+                        debugLog = Configs.debugLog,
                         iptvLastChannelIdx = Configs.iptvLastChannelIdx,
                         iptvChannelChangeFlip = Configs.iptvChannelChangeFlip,
                         iptvSourceCurrent = Configs.iptvSourceCurrent,
@@ -252,6 +253,7 @@ object HttpServer : Loggable() {
         Configs.debugShowFps = configs.debugShowFps
         Configs.debugShowVideoPlayerMetadata = configs.debugShowVideoPlayerMetadata
         Configs.debugShowLayoutGrids = configs.debugShowLayoutGrids
+        Configs.debugLog = configs.debugLog
         Configs.iptvLastChannelIdx = configs.iptvLastChannelIdx
         Configs.iptvChannelChangeFlip = configs.iptvChannelChangeFlip
         Configs.iptvSourceCurrent = configs.iptvSourceCurrent
@@ -365,6 +367,7 @@ private data class AllSettings(
     val debugShowFps: Boolean = false,
     val debugShowVideoPlayerMetadata: Boolean = false,
     val debugShowLayoutGrids: Boolean = false,
+    val debugLog: Boolean = false,
     val iptvLastChannelIdx: Int = 0,
     val iptvChannelChangeFlip: Boolean = false,
     val iptvSourceCurrent: IptvSource = IptvSource(),

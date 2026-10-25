@@ -55,11 +55,11 @@ class IJKVideoPlayer(
     // 用于确保底层播放器方法的调用是串行的，防止并发导致的 JNI 层崩溃
     private val playerMutex = Mutex()
 
-    private val ijkPlayer by lazy {
-        IjkMediaPlayer().apply {
-            //            IjkMediaPlayer.native_setLogLevel(IjkMediaPlayer.IJK_LOG_INFO)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_clear", 1)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_timeout", 0)
+    private val ijkPlayer by lazy { IjkMediaPlayer() }
+
+    private fun setOption() {
+        ijkPlayer.apply {
+            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "allowed_extensions", "ALL")
             setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "http-detect-range-support", 0)
             setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "reconnect", 2)
             setOption(
@@ -67,16 +67,12 @@ class IJKVideoPlayer(
                 "timeout",
                 Configs.videoPlayerLoadTimeout
             )
+            // reset() 会清掉创建时设过的选项，探测上限必须在每次 prepare 前重新写入
             setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzemaxduration", 2_000_000L)
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzedduration", 1_000_000L)
+            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "analyzeduration", 1_000_000L)
             setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "probesize", 1024 * 512L)
             setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "fflags", "fastseek")
-        }
-    }
-
-    private fun setOption() {
-        ijkPlayer.apply {
-            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "allowed_extensions", "ALL")
+            setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "dns_cache_clear", 0)
             if (Configs.videoPlayerForceSoftDecode)
                 setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec", 0)
             else{

@@ -42,6 +42,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yogiczy.mytv.core.data.utils.Logger
+import top.yogiczy.mytv.core.util.utils.LogGate
 import top.yogiczy.mytv.tv.ui.utils.Configs
 
 @OptIn(UnstableApi::class)
@@ -198,7 +199,7 @@ class Media3VideoPlayer(
                 // 公网/NAT 场景下会明显拖慢出图（对齐 IJK 的 rtsp_transport=tcp，直接走 TCP）
                 RtspMediaSource.Factory()
                     .setForceUseRtpTcp(true)
-                    .setDebugLoggingEnabled(true)
+                    .setDebugLoggingEnabled(LogGate.enabled)
                     .setSocketFactory(rtspSocketFactory())
                     .createMediaSource(mediaItem)
             }
@@ -408,20 +409,40 @@ class Media3VideoPlayer(
     }
 
     private val eventLogger = EventLogger()
+    private var eventLoggerAttached = false
+    private val onDebugLogChanged: (Boolean) -> Unit = { syncEventLogger() }
+
+    private fun syncEventLogger() {
+        if (LogGate.enabled) {
+            if (!eventLoggerAttached) {
+                videoPlayer.addAnalyticsListener(eventLogger)
+                eventLoggerAttached = true
+            }
+        } else if (eventLoggerAttached) {
+            videoPlayer.removeAnalyticsListener(eventLogger)
+            eventLoggerAttached = false
+        }
+    }
 
     override fun initialize() {
         super.initialize()
         videoPlayer.addListener(playerListener)
         videoPlayer.addAnalyticsListener(metadataListener)
-        videoPlayer.addAnalyticsListener(eventLogger)
+        LogGate.removeListener(onDebugLogChanged)
+        LogGate.addListener(onDebugLogChanged)
+        syncEventLogger()
     }
 
     override fun release() {
         ioRetryJob?.cancel()
         ioRetryJob = null
+        LogGate.removeListener(onDebugLogChanged)
         videoPlayer.removeListener(playerListener)
         videoPlayer.removeAnalyticsListener(metadataListener)
-        videoPlayer.removeAnalyticsListener(eventLogger)
+        if (eventLoggerAttached) {
+            videoPlayer.removeAnalyticsListener(eventLogger)
+            eventLoggerAttached = false
+        }
         videoPlayer.release()
         super.release()
     }

@@ -61,6 +61,13 @@ class SettingsViewModel : ViewModel() {
             Configs.debugShowLayoutGrids = value
         }
 
+    private var _debugLog by mutableStateOf(Configs.debugLog)
+    var debugLog: Boolean
+        get() = _debugLog
+        set(value) {
+            Configs.debugLog = value
+        }
+
     private var _iptvLastChannelIdx by mutableIntStateOf(Configs.iptvLastChannelIdx)
     var iptvLastChannelIdx: Int
         get() = _iptvLastChannelIdx
@@ -378,6 +385,7 @@ class SettingsViewModel : ViewModel() {
                     Configs.KEY.DEBUG_SHOW_FPS -> _debugShowFps = Configs.debugShowFps
                     Configs.KEY.DEBUG_SHOW_VIDEO_PLAYER_METADATA -> _debugShowVideoPlayerMetadata = Configs.debugShowVideoPlayerMetadata
                     Configs.KEY.DEBUG_SHOW_LAYOUT_GRIDS -> _debugShowLayoutGrids = Configs.debugShowLayoutGrids
+                    Configs.KEY.DEBUG_LOG -> _debugLog = Configs.debugLog
                     Configs.KEY.IPTV_LAST_CHANNEL_IDX -> _iptvLastChannelIdx = Configs.iptvLastChannelIdx
                     Configs.KEY.IPTV_CHANNEL_CHANGE_FLIP -> _iptvChannelChangeFlip = Configs.iptvChannelChangeFlip
                     Configs.KEY.IPTV_SOURCE_CURRENT -> _iptvSourceCurrent = Configs.iptvSourceCurrent

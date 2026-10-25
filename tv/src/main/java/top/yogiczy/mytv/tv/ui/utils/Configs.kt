@@ -13,6 +13,7 @@ import top.yogiczy.mytv.core.data.entities.iptvsource.IptvSource
 import top.yogiczy.mytv.core.data.entities.iptvsource.IptvSourceList
 import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.SP
+import top.yogiczy.mytv.core.util.utils.LogGate
 import top.yogiczy.mytv.tv.ui.screens.videoplayer.VideoPlayerDisplayMode
 
 /**
@@ -43,6 +44,9 @@ object Configs {
 
         /** 显示布局网格 */
         DEBUG_SHOW_LAYOUT_GRIDS,
+
+        /** 打印调试日志 */
+        DEBUG_LOG,
 
         /** ==================== 直播源 ==================== */
         /** 上一次频道序号 */
@@ -211,13 +215,22 @@ object Configs {
             notifyChange(KEY.DEBUG_SHOW_VIDEO_PLAYER_METADATA)
         }
 
-    /** 显示布局网格 */
-    var debugShowLayoutGrids: Boolean
-        get() = SP.getBoolean(KEY.DEBUG_SHOW_LAYOUT_GRIDS.name, false)
-        set(value) {
-            SP.putBoolean(KEY.DEBUG_SHOW_LAYOUT_GRIDS.name, value)
-            notifyChange(KEY.DEBUG_SHOW_LAYOUT_GRIDS)
-        }
+        /** 显示布局网格 */
+        var debugShowLayoutGrids: Boolean
+            get() = SP.getBoolean(KEY.DEBUG_SHOW_LAYOUT_GRIDS.name, false)
+            set(value) {
+                SP.putBoolean(KEY.DEBUG_SHOW_LAYOUT_GRIDS.name, value)
+                notifyChange(KEY.DEBUG_SHOW_LAYOUT_GRIDS)
+            }
+
+        /** 打印调试日志。关闭时应用、台标、播放器都不再输出日志。 */
+        var debugLog: Boolean
+            get() = SP.getBoolean(LogGate.PREF_KEY, false)
+            set(value) {
+                SP.putBoolean(LogGate.PREF_KEY, value)
+                LogGate.setEnabled(value)
+                notifyChange(KEY.DEBUG_LOG)
+            }
 
     /** ==================== 直播源 ==================== */
     /** 上一次直播源序号 */

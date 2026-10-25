@@ -180,18 +180,17 @@ class MainContentState(
     private fun getPrevFavoriteChannel(): Channel? {
         if (!settingsViewModel.iptvChannelFavoriteListVisible) return null
 
-        val channelGroupList = channelGroupListProvider()
+        val channelList = channelGroupListProvider().channelList
 
         val favoriteChannelNameList = settingsViewModel.iptvChannelFavoriteList
-        val favoriteChannelList =
-            channelGroupList.channelList.filter { it.name in favoriteChannelNameList }
+        val favoriteChannelList = channelList.filter { it.name in favoriteChannelNameList }
 
         return if (_currentChannel in favoriteChannelList && _currentChannel != favoriteChannelList.first()) {
             val currentIdx = favoriteChannelList.indexOf(_currentChannel)
             favoriteChannelList[currentIdx - 1]
         } else if (settingsViewModel.iptvChannelFavoriteChangeBoundaryJumpOut) {
             settingsViewModel.iptvChannelFavoriteListVisible = false
-            channelGroupList.channelList.lastOrNull()
+            channelList.lastOrNull()
         } else {
             favoriteChannelList.lastOrNull()
         }
@@ -201,18 +200,17 @@ class MainContentState(
     private fun getNextFavoriteChannel(): Channel? {
         if (!settingsViewModel.iptvChannelFavoriteListVisible) return null
 
-        val channelGroupList = channelGroupListProvider()
+        val channelList = channelGroupListProvider().channelList
 
         val favoriteChannelNameList = settingsViewModel.iptvChannelFavoriteList
-        val favoriteChannelList =
-            channelGroupList.channelList.filter { it.name in favoriteChannelNameList }
+        val favoriteChannelList = channelList.filter { it.name in favoriteChannelNameList }
 
         return if (_currentChannel in favoriteChannelList && _currentChannel != favoriteChannelList.last()) {
             val currentIdx = favoriteChannelList.indexOf(_currentChannel)
             favoriteChannelList[currentIdx + 1]
         } else if (settingsViewModel.iptvChannelFavoriteChangeBoundaryJumpOut) {
             settingsViewModel.iptvChannelFavoriteListVisible = false
-            channelGroupList.channelList.firstOrNull()
+            channelList.firstOrNull()
         } else {
             favoriteChannelList.firstOrNull()
         }
@@ -220,24 +218,21 @@ class MainContentState(
 
     private fun getPrevChannel(): Channel {
         return getPrevFavoriteChannel() ?: run {
-            val channelGroupList = channelGroupListProvider()
-            val channelList = channelGroupList.channelList
+            val channelList = channelGroupListProvider().channelList
             if (channelList.isEmpty()) return Channel()
 
-            val currentIdx = channelGroupList.channelIdx(_currentChannel)
+            val currentIdx = channelList.indexOf(_currentChannel)
             // currentIdx < 0 表示当前频道已不在列表中（如直播源刷新后残留旧对象）。
-            // 显式处理，不再依赖 getOrElse 的越界兜底（原写法会传入 -1 之类的非法下标）。
             return if (currentIdx <= 0) channelList.last() else channelList[currentIdx - 1]
         }
     }
 
     private fun getNextChannel(): Channel {
         return getNextFavoriteChannel() ?: run {
-            val channelGroupList = channelGroupListProvider()
-            val channelList = channelGroupList.channelList
+            val channelList = channelGroupListProvider().channelList
             if (channelList.isEmpty()) return Channel()
 
-            val currentIdx = channelGroupList.channelIdx(_currentChannel)
+            val currentIdx = channelList.indexOf(_currentChannel)
             return if (currentIdx < 0 || currentIdx >= channelList.lastIndex) {
                 channelList.first()
             } else {

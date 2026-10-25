@@ -5,8 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import coil.imageLoader
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import top.yogiczy.mytv.tv.ui.screens.channel.components.channelLogoImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -104,12 +103,9 @@ class MainViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             channelGroupList.channelList.forEach { channel ->
-                if (!channel.logo.isNullOrBlank()) {
-                    val request = ImageRequest.Builder(context)
-                        .data(channel.logo)
-                        .diskCachePolicy(CachePolicy.ENABLED)
-                        .build()
-                    context.imageLoader.enqueue(request)
+                val logo = channel.logo
+                if (!logo.isNullOrBlank()) {
+                    context.imageLoader.enqueue(channelLogoImageRequest(context, logo))
                 }
             }
         }

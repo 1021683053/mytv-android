@@ -1,5 +1,6 @@
 package top.yogiczy.mytv.tv.ui.screens.channel.components
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -21,9 +22,28 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil.compose.SubcomposeAsyncImage
+import coil.request.CachePolicy
 import coil.request.ImageRequest
 import top.yogiczy.mytv.core.data.utils.Logger
 import kotlin.math.abs
+import kotlin.math.roundToInt
+
+/** 列表、底部信息条、预加载共用的解码尺寸，避免同一 URL 因尺寸不同各存一张图。 */
+private const val CHANNEL_LOGO_SIZE_DP = 64
+
+fun channelLogoImageRequest(context: Context, data: String): ImageRequest {
+    val px = (CHANNEL_LOGO_SIZE_DP * context.resources.displayMetrics.density)
+        .roundToInt()
+        .coerceAtLeast(1)
+    return ImageRequest.Builder(context)
+        .data(data)
+        .size(px, px)
+        .allowHardware(false)
+        .bitmapConfig(Bitmap.Config.ARGB_8888)
+        .diskCachePolicy(CachePolicy.ENABLED)
+        .memoryCachePolicy(CachePolicy.ENABLED)
+        .build()
+}
 
 @Composable
 fun ChannelItemLogo(
@@ -55,11 +75,7 @@ fun ChannelItemLogo(
         } else {
             SubcomposeAsyncImage(
                 modifier = Modifier.fillMaxSize(),
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(currentLogo)
-                    .allowHardware(false)
-                    .bitmapConfig(Bitmap.Config.ARGB_8888)
-                    .build(),
+                model = channelLogoImageRequest(LocalContext.current, currentLogo!!),
                 contentDescription = null,
                 loading = {
                     if (!textFallback.isNullOrBlank()) {

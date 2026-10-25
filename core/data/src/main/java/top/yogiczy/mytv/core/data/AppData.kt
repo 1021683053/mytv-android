@@ -6,6 +6,7 @@ import android.os.Build
 import top.yogiczy.mytv.core.data.utils.Globals
 import top.yogiczy.mytv.core.data.utils.Logger
 import top.yogiczy.mytv.core.data.utils.SP
+import top.yogiczy.mytv.core.util.utils.LogGate
 import java.io.File
 
 object AppData {
@@ -13,6 +14,8 @@ object AppData {
 
     fun init(context: Context) {
         Globals.appVersionName = resolveAppVersionName(context)
+        SP.init(context)
+        LogGate.setEnabled(SP.getBoolean(LogGate.PREF_KEY, false))
 
         // 关键：使用 filesDir/cache 而不是 context.cacheDir，
         // 升级（覆盖安装）时 cacheDir 常被系统清空，filesDir 不会。
@@ -26,7 +29,6 @@ object AppData {
             .onFailure { log.e("迁移旧缓存失败", it) }
 
         Globals.cacheDir = targetDir
-        SP.init(context)
     }
 
     /**

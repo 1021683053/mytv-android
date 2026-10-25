@@ -2,6 +2,7 @@
 package top.yogiczy.mytv.core.data.utils
 import android.util.Log
 import kotlinx.serialization.Serializable
+import top.yogiczy.mytv.core.util.utils.LogGate
 
 /**
  * 日志工具类
@@ -10,26 +11,31 @@ class Logger private constructor(
     private val tag: String
 ) {
     fun d(message: String, throwable: Throwable? = null) {
+        if (!LogGate.enabled) return
         Log.d(tag, message, throwable)
         addHistoryItem(HistoryItem(LevelType.DEBUG, tag, message, throwable?.message))
     }
 
     fun i(message: String, throwable: Throwable? = null) {
+        if (!LogGate.enabled) return
         Log.i(tag, message, throwable)
         addHistoryItem(HistoryItem(LevelType.INFO, tag, message, throwable?.message))
     }
 
     fun w(message: String, throwable: Throwable? = null) {
+        if (!LogGate.enabled) return
         Log.w(tag, message, throwable)
         addHistoryItem(HistoryItem(LevelType.WARN, tag, message, throwable?.message))
     }
 
     fun e(message: String, throwable: Throwable? = null) {
+        if (!LogGate.enabled) return
         Log.e(tag, message, throwable)
         addHistoryItem(HistoryItem(LevelType.ERROR, tag, message, throwable?.message))
     }
 
     fun wtf(message: String, throwable: Throwable? = null) {
+        if (!LogGate.enabled) return
         Log.wtf(tag, message, throwable)
         addHistoryItem(HistoryItem(LevelType.ERROR, tag, message, throwable?.message))
     }
