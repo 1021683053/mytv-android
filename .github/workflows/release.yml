@@ -55,21 +55,29 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
-      # 5. 导入签名密钥
+      # 5. 导入签名密钥（与主干相同的 Secrets；未配置时跳过，产物为未签名 release）
       - name: Decode signing key
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "${{ secrets.SIGNING_KEYSTORE_B64 }}" | base64 -d > release.keystore
-          echo "RELEASE_STORE_FILE=${{ github.workspace }}/release.keystore" >> "$GITHUB_ENV"
-          echo "RELEASE_KEY_ALIAS=${{ secrets.SIGNING_ALIAS }}" >> "$GITHUB_ENV"
-          echo "RELEASE_STORE_PASSWORD=${{ secrets.SIGNING_STORE_PWD }}" >> "$GITHUB_ENV"
-          echo "RELEASE_KEY_PASSWORD=${{ secrets.SIGNING_KEY_PWD }}" >> "$GITHUB_ENV"
+          echo "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
+          cat > key.properties <<EOF
+          storeFile=keystore.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
 
       # 6. 编译 Release APK
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      # 7. 验证 APK 签名（自动选用 Runner 上最新的 build-tools）
+      # 7. 验证 APK 签名（未配置密钥时跳过）
       - name: Check APK signature
+        if: ${{ env.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           apksigner="$(find "$ANDROID_SDK_ROOT/build-tools" -name apksigner -type f | sort -V | tail -n1)"
           echo "Using apksigner: $apksigner"

@@ -20,26 +20,28 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     signingConfigs {
-        create("release") {
-            val localKeystore = rootProject.file("keystore.jks")
-            val userKeystore = file(
-                System.getenv("RELEASE_STORE_FILE")
-                    ?: keystoreProperties.getProperty("storeFile")
-                    ?: "keystore.jks"
-            )
+        val localKeystore = rootProject.file("keystore.jks")
+        val userKeystore = file(
+            System.getenv("KEYSTORE") ?: keystoreProperties.getProperty("storeFile")
+                ?: "keystore.jks"
+        )
 
-            storeFile = if (userKeystore.exists()) userKeystore else localKeystore
-            storePassword = System.getenv("RELEASE_STORE_PASSWORD")
-                ?: keystoreProperties.getProperty("storePassword")
-            keyAlias = System.getenv("RELEASE_KEY_ALIAS")
-                ?: keystoreProperties.getProperty("keyAlias")
-            keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
-                ?: keystoreProperties.getProperty("keyPassword")
+        // 密钥文件存在才创建签名配置，否则 release 构建为未签名包（CI 未配置密钥时不阻塞构建）
+        if (userKeystore.exists() || localKeystore.exists()) {
+            create("release") {
+                storeFile = if (userKeystore.exists()) userKeystore else localKeystore
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    ?: keystoreProperties.getProperty("storePassword")
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: keystoreProperties.getProperty("keyAlias")
+                keyPassword =
+                    System.getenv("KEY_PASSWORD") ?: keystoreProperties.getProperty("keyPassword")
+            }
         }
     }
 
     defaultConfig {
-        applicationId = "top.yogiczy.mytv.tv"
+        applicationId = "com.chinablue.tv"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 33
@@ -61,7 +63,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
