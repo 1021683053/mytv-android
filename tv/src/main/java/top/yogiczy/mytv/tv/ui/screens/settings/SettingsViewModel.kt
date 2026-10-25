@@ -33,13 +33,6 @@ class SettingsViewModel : ViewModel() {
             Configs.appBootLaunch = value
         }
 
-    private var _appLastLatestVersion by mutableStateOf(Configs.appLastLatestVersion)
-    var appLastLatestVersion: String
-        get() = _appLastLatestVersion
-        set(value) {
-            Configs.appLastLatestVersion = value
-        }
-
     private var _appAgreementAgreed by mutableStateOf(Configs.appAgreementAgreed)
     var appAgreementAgreed: Boolean
         get() = _appAgreementAgreed
@@ -313,20 +306,6 @@ class SettingsViewModel : ViewModel() {
             Configs.uiScreenAutoCloseDelay = value
         }
 
-    private var _updateForceRemind by mutableStateOf(Configs.updateForceRemind)
-    var updateForceRemind: Boolean
-        get() = _updateForceRemind
-        set(value) {
-            Configs.updateForceRemind = value
-        }
-
-    private var _updateChannel by mutableStateOf(Configs.updateChannel)
-    var updateChannel: String
-        get() = _updateChannel
-        set(value) {
-            Configs.updateChannel = value
-        }
-
     private var _videoPlayerUserAgent by mutableStateOf(Configs.videoPlayerUserAgent)
     var videoPlayerUserAgent: String
         get() = _videoPlayerUserAgent
@@ -395,7 +374,6 @@ class SettingsViewModel : ViewModel() {
             Configs.onKeyChanged.collect { key ->
                 when (key) {
                     Configs.KEY.APP_BOOT_LAUNCH -> _appBootLaunch = Configs.appBootLaunch
-                    Configs.KEY.APP_LAST_LATEST_VERSION -> _appLastLatestVersion = Configs.appLastLatestVersion
                     Configs.KEY.APP_AGREEMENT_AGREED -> _appAgreementAgreed = Configs.appAgreementAgreed
                     Configs.KEY.DEBUG_SHOW_FPS -> _debugShowFps = Configs.debugShowFps
                     Configs.KEY.DEBUG_SHOW_VIDEO_PLAYER_METADATA -> _debugShowVideoPlayerMetadata = Configs.debugShowVideoPlayerMetadata
@@ -431,8 +409,6 @@ class SettingsViewModel : ViewModel() {
                     Configs.KEY.UI_TIME_SHOW_MODE -> _uiTimeShowMode = Configs.uiTimeShowMode
                     Configs.KEY.UI_FOCUS_OPTIMIZE -> _uiFocusOptimize = Configs.uiFocusOptimize
                     Configs.KEY.UI_SCREEN_AUTO_CLOSE_DELAY -> _uiScreenAutoCloseDelay = Configs.uiScreenAutoCloseDelay
-                    Configs.KEY.UPDATE_FORCE_REMIND -> _updateForceRemind = Configs.updateForceRemind
-                    Configs.KEY.UPDATE_CHANNEL -> _updateChannel = Configs.updateChannel
                     Configs.KEY.VIDEO_PLAYER_USER_AGENT -> _videoPlayerUserAgent = Configs.videoPlayerUserAgent
                     Configs.KEY.VIDEO_PLAYER_LOAD_TIMEOUT -> _videoPlayerLoadTimeout = Configs.videoPlayerLoadTimeout
                     Configs.KEY.VIDEO_PLAYER_DISPLAY_MODE -> _videoPlayerAspectRatio = Configs.videoPlayerDisplayMode

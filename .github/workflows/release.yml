@@ -16,9 +16,7 @@ on:
 #
 # 发布流程（由 release.sh 驱动）：
 #   release.sh 修改 versionName -> commit -> 创建 v<versionName> tag -> push 当前分支 + tag
-#   本工作流按 tag 编译 APK：
-#     - versionName 含 "beta" -> prerelease=true，更新 tv-beta.json
-#     - 否则             -> 正式版，更新 tv-stable.json
+#   本工作流按 tag 编译 APK。versionName 含 "beta" 时标记为 prerelease。
 
 jobs:
   build_apk:
@@ -119,10 +117,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 11. 触发更新 JSON 工作流（beta 与正式都更新，由 update_json 分流到对应文件）
-      - name: Trigger Update JSON Workflow
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run update_json.yml --ref main -f tag_name=${{ env.TAG }}

@@ -31,9 +31,6 @@ object Configs {
         /** 开机自启 */
         APP_BOOT_LAUNCH,
 
-        /** 上一次最新版本 */
-        APP_LAST_LATEST_VERSION,
-
         /** 协议已同意 */
         APP_AGREEMENT_AGREED,
 
@@ -151,13 +148,6 @@ object Configs {
         /** 自动关闭界面延时 */
         UI_SCREEN_AUTO_CLOSE_DELAY,
 
-        /** ==================== 更新 ==================== */
-        /** 更新强提醒 */
-        UPDATE_FORCE_REMIND,
-
-        /** 更新通道 */
-        UPDATE_CHANNEL,
-
         /** ==================== 播放器 ==================== */
         /** 播放器 自定义ua */
         VIDEO_PLAYER_USER_AGENT,
@@ -194,14 +184,6 @@ object Configs {
         set(value) {
             SP.putBoolean(KEY.APP_BOOT_LAUNCH.name, value)
             notifyChange(KEY.APP_BOOT_LAUNCH)
-        }
-
-    /** 上一次最新版本 */
-    var appLastLatestVersion: String
-        get() = SP.getString(KEY.APP_LAST_LATEST_VERSION.name, "")
-        set(value) {
-            SP.putString(KEY.APP_LAST_LATEST_VERSION.name, value)
-            notifyChange(KEY.APP_LAST_LATEST_VERSION)
         }
 
     /** 协议已同意 */
@@ -536,23 +518,6 @@ object Configs {
         set(value) {
             SP.putLong(KEY.UI_SCREEN_AUTO_CLOSE_DELAY.name, value)
             notifyChange(KEY.UI_SCREEN_AUTO_CLOSE_DELAY)
-        }
-
-    /** ==================== 更新 ==================== */
-    /** 更新强提醒 */
-    var updateForceRemind: Boolean
-        get() = SP.getBoolean(KEY.UPDATE_FORCE_REMIND.name, false)
-        set(value) {
-            SP.putBoolean(KEY.UPDATE_FORCE_REMIND.name, value)
-            notifyChange(KEY.UPDATE_FORCE_REMIND)
-        }
-
-    /** 更新通道 */
-    var updateChannel: String
-        get() = SP.getString(KEY.UPDATE_CHANNEL.name, "stable")
-        set(value) {
-            SP.putString(KEY.UPDATE_CHANNEL.name, value)
-            notifyChange(KEY.UPDATE_CHANNEL)
         }
 
     /** ==================== 播放器 ==================== */

@@ -200,7 +200,6 @@ object HttpServer : Loggable() {
                 json.encodeToString(
                     AllSettings(
                         appBootLaunch = Configs.appBootLaunch,
-                        appLastLatestVersion = Configs.appLastLatestVersion,
                         appAgreementAgreed = Configs.appAgreementAgreed,
                         debugShowFps = Configs.debugShowFps,
                         debugShowVideoPlayerMetadata = Configs.debugShowVideoPlayerMetadata,
@@ -232,8 +231,6 @@ object HttpServer : Loggable() {
                         uiTimeShowMode = Configs.uiTimeShowMode,
                         uiFocusOptimize = Configs.uiFocusOptimize,
                         uiScreenAutoCloseDelay = Configs.uiScreenAutoCloseDelay,
-                        updateForceRemind = Configs.updateForceRemind,
-                        updateChannel = Configs.updateChannel,
                         videoPlayerUserAgent = Configs.videoPlayerUserAgent,
                         videoPlayerLoadTimeout = Configs.videoPlayerLoadTimeout,
                         videoPlayerDisplayMode = Configs.videoPlayerDisplayMode,
@@ -251,7 +248,6 @@ object HttpServer : Loggable() {
         val configs = Json.decodeFromString<AllSettings>(body.toString())
 
         Configs.appBootLaunch = configs.appBootLaunch
-        Configs.appLastLatestVersion = configs.appLastLatestVersion
         Configs.appAgreementAgreed = configs.appAgreementAgreed
         Configs.debugShowFps = configs.debugShowFps
         Configs.debugShowVideoPlayerMetadata = configs.debugShowVideoPlayerMetadata
@@ -284,8 +280,6 @@ object HttpServer : Loggable() {
         Configs.uiTimeShowMode = configs.uiTimeShowMode
         Configs.uiFocusOptimize = configs.uiFocusOptimize
         Configs.uiScreenAutoCloseDelay = configs.uiScreenAutoCloseDelay
-        Configs.updateForceRemind = configs.updateForceRemind
-        Configs.updateChannel = configs.updateChannel
         Configs.videoPlayerUserAgent = configs.videoPlayerUserAgent
         Configs.videoPlayerLoadTimeout = configs.videoPlayerLoadTimeout
         Configs.videoPlayerDisplayMode = configs.videoPlayerDisplayMode
@@ -367,7 +361,6 @@ private data class AppInfo(
 @Serializable
 private data class AllSettings(
     val appBootLaunch: Boolean = false,
-    val appLastLatestVersion: String = "",
     val appAgreementAgreed: Boolean = false,
     val debugShowFps: Boolean = false,
     val debugShowVideoPlayerMetadata: Boolean = false,
@@ -399,8 +392,6 @@ private data class AllSettings(
     val uiTimeShowMode: Configs.UiTimeShowMode = Configs.UiTimeShowMode.HIDDEN,
     val uiFocusOptimize: Boolean = false,
     val uiScreenAutoCloseDelay: Long = 0,
-    val updateForceRemind: Boolean = false,
-    val updateChannel: String = "",
     val videoPlayerUserAgent: String = "",
     val videoPlayerLoadTimeout: Long = 0,
     val videoPlayerDisplayMode: VideoPlayerDisplayMode = VideoPlayerDisplayMode.ORIGINAL,

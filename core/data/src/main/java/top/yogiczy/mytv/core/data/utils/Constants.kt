@@ -110,14 +110,6 @@ object Constants {
     const val EPG_REFRESH_TIME_THRESHOLD = 2 // 不到2点不刷新
 
     /**
-     * Git最新版本信息
-     */
-    val GIT_RELEASE_LATEST_URL = mapOf(
-        "stable" to GITHUB_PROXY+"https://raw.githubusercontent.com/minyoad/mytv-android-update/main/tv-stable.json",
-        "beta" to GITHUB_PROXY+"https://raw.githubusercontent.com/minyoad/mytv-android-update/main/tv-beta.json",
-    )
-
-    /**
      * HTTP请求重试次数
      */
     const val HTTP_RETRY_COUNT = 3L

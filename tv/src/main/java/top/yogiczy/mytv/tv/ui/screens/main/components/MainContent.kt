@@ -47,7 +47,6 @@ import top.yogiczy.mytv.tv.ui.screens.monitor.MonitorScreen
 import top.yogiczy.mytv.tv.ui.screens.quickop.QuickOpScreen
 import top.yogiczy.mytv.tv.ui.screens.settings.SettingsScreen
 import top.yogiczy.mytv.tv.ui.screens.settings.SettingsViewModel
-import top.yogiczy.mytv.tv.ui.screens.update.UpdateScreen
 import top.yogiczy.mytv.tv.ui.screens.videoplayer.VideoPlayerScreen
 import top.yogiczy.mytv.tv.ui.screens.videoplayer.rememberVideoPlayerState
 import top.yogiczy.mytv.tv.ui.screens.main.MainViewModel
@@ -500,8 +499,6 @@ fun MainContent(
                 EpgProgrammeReserveList(settingsViewModel.epgChannelReserveList - reserve)
         },
     )
-
-    UpdateScreen()
 
     Visible({ settingsViewModel.debugShowFps }) { MonitorScreen() }
 }
