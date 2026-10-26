@@ -2,6 +2,8 @@ package top.yogiczy.mytv.tv.ui.screens.videoplayer
 
 import android.view.SurfaceView
 import android.view.TextureView
+import kotlinx.coroutines.yield
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -58,9 +60,31 @@ class VideoPlayerState(
     /** 元数据 */
     var metadata by mutableStateOf(VideoPlayer.Metadata())
 
+    private var acceptingEvents = false
+    private var requestGeneration = 0
     private var isAutoDisplayModeSet = false
+    private var instanceType = when (instance) {
+        is IJKVideoPlayer -> Configs.VideoPlayerType.IJK
+        is Media3VideoPlayer -> Configs.VideoPlayerType.MEDIA3
+        else -> Configs.videoPlayerType
+    }
+    private var needsSurfaceBinding = false
+    private var userPaused = false
+    private var pendingResumePosition: Long? = null
+
+    private fun bindCurrentSurface() {
+        if (!needsSurfaceBinding) return
+        needsSurfaceBinding = false
+        (currentSurface as? SurfaceView)?.let(instance::setVideoSurfaceView)
+        (currentTexture as? TextureView)?.let(instance::setVideoTextureView)
+    }
 
     fun prepare(url: String) {
+        userPaused = false
+        pendingResumePosition = null
+        bindCurrentSurface()
+        requestGeneration++
+        acceptingEvents = true
         currentUrl = url
         error = null
         isAutoDisplayModeSet = false
@@ -68,33 +92,58 @@ class VideoPlayerState(
     }
 
     fun play() {
+        userPaused = false
+        val resumeAt = pendingResumePosition
+        val url = currentUrl
+        if (resumeAt != null && url != null) {
+            prepare(url)
+            instance.seekTo(resumeAt)
+        }
         instance.play()
     }
 
     fun pause() {
+        userPaused = true
         instance.pause()
     }
 
     fun seekTo(position: Long) {
-        instance.seekTo(position)
+        if (pendingResumePosition != null) {
+            pendingResumePosition = position
+            currentPosition = position
+        } else instance.seekTo(position)
     }
 
     fun stop() {
+        userPaused = false
+        pendingResumePosition = null
+        requestGeneration++
+        acceptingEvents = false
+        currentUrl = null
+        error = null
+        isBuffering = false
+        isPlaying = false
         instance.stop()
     }
 
     fun setVideoSurfaceView(surfaceView: SurfaceView) {
         currentSurface = surfaceView
+        currentTexture = null
+        needsSurfaceBinding = false
         instance.setVideoSurfaceView(surfaceView)
     }
 
     fun setVideoTextureView(textureView: TextureView) {
         currentTexture = textureView
+        currentSurface = null
+        needsSurfaceBinding = false
         instance.setVideoTextureView(textureView)
     }
 
     private val onReadyListeners = mutableListOf<() -> Unit>()
     private val onErrorListeners = mutableListOf<() -> Unit>()
+    private val onPlayingListeners = mutableListOf<(Boolean) -> Unit>()
+    private val onBufferingListeners = mutableListOf<(Boolean) -> Unit>()
     private val onInterruptListeners = mutableListOf<() -> Unit>()
 
     fun onReady(listener: () -> Unit) {
@@ -103,6 +152,14 @@ class VideoPlayerState(
 
     fun onError(listener: () -> Unit) {
         onErrorListeners.add(listener)
+    }
+
+    fun onPlayingChanged(listener: (Boolean) -> Unit) {
+        onPlayingListeners.add(listener)
+    }
+
+    fun onBuffering(listener: (Boolean) -> Unit) {
+        onBufferingListeners.add(listener)
     }
 
     fun onInterrupt(listener: () -> Unit) {
@@ -125,43 +182,48 @@ class VideoPlayerState(
         // 监听播放器类型变化
         settingsViewModel.videoPlayerTypeValue = Configs.videoPlayerType
         settingsViewModel.onVideoPlayerTypeChanged = { type ->
-            currentUrl?.let { url ->
-                val newInstance = when (type) {
+            if (type != instanceType) {
+                val url = currentUrl
+                val paused = userPaused
+                val position = pendingResumePosition ?: currentPosition
+                requestGeneration++
+                acceptingEvents = false
+                instance.release()
+                instance = when (type) {
                     Configs.VideoPlayerType.IJK -> IJKVideoPlayer(context, coroutineScope)
                     Configs.VideoPlayerType.MEDIA3 -> Media3VideoPlayer(context, coroutineScope)
-                    else -> IJKVideoPlayer(context, coroutineScope)
                 }
-                
-                // 保存当前播放状态
-                val wasPlaying = isPlaying
-                val position = currentPosition
-                
-                // 释放旧实例
-                instance.release()
-                
-                // 创建新实例
-                instance = newInstance
+                instanceType = type
+                needsSurfaceBinding = true
                 initialize()
-                
-                // 恢复播放状态
-                prepare(url)
-                seekTo(position)
-                if (wasPlaying) play()
-                
-                // 恢复surface
-                when (currentSurface) {
-                    is SurfaceView -> setVideoSurfaceView(currentSurface as SurfaceView)
-                    is TextureView -> setVideoTextureView(currentTexture as TextureView)
+
+                if (url != null) {
+                    if (paused) {
+                        // Keep the user's pause; prepare the new backend only when play is requested.
+                        pendingResumePosition = position
+                        isPlaying = false
+                        isBuffering = false
+                    } else {
+                        prepare(url)
+                        seekTo(position)
+                    }
                 }
             }
         }
         instance.onError { ex ->
-            error = ex?.let { "${it.errorCodeName}(${it.errorCode})" }
-                ?.apply { onErrorListeners.forEach { it.invoke() } }
-
+            if (acceptingEvents && ex != null) {
+                val generation = requestGeneration
+                error = "${ex.errorCodeName}(${ex.errorCode})"
+                acceptingEvents = false
+                coroutineScope.launch {
+                    yield()
+                    if (generation == requestGeneration) onErrorListeners.forEach { it.invoke() }
+                }
+            }
         }
 
         instance.onReady {
+            if (!acceptingEvents) return@onReady
             onReadyListeners.forEach { it.invoke() }
             error = null
             if (!isAutoDisplayModeSet) {
@@ -169,20 +231,32 @@ class VideoPlayerState(
             }
         }
         instance.onBuffering {
+            if (!acceptingEvents) return@onBuffering
+            val changed = isBuffering != it
             isBuffering = it
+            if (changed) onBufferingListeners.forEach { listener -> listener(it) }
             if (it) error = null
         }
         instance.onPrepared { }
-        instance.onIsPlayingChanged { isPlaying = it }
+        instance.onIsPlayingChanged {
+            if (acceptingEvents) {
+                val changed = isPlaying != it
+                isPlaying = it
+                if (changed) onPlayingListeners.forEach { listener -> listener(it) }
+            }
+        }
         instance.onDurationChanged { duration = it }
         instance.onCurrentPositionChanged { currentPosition = it }
         instance.onMetadata { metadata = it }
-        instance.onInterrupt { onInterruptListeners.forEach { it.invoke() } }
+        instance.onInterrupt { if (acceptingEvents) onInterruptListeners.forEach { it.invoke() } }
     }
 
     fun release() {
         onReadyListeners.clear()
         onErrorListeners.clear()
+        onInterruptListeners.clear()
+        onBufferingListeners.clear()
+        onPlayingListeners.clear()
         instance.release()
     }
 }

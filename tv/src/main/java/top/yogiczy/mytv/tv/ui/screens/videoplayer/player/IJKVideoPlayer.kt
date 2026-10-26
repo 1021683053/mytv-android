@@ -106,15 +106,14 @@ class IJKVideoPlayer(
     
     private var updatePositionJob: Job? = null
     
-    private val playerListener = object : IMediaPlayer.OnPreparedListener,
+    private fun createPlayerListener(origin: Int) = object : IMediaPlayer.OnPreparedListener,
         IMediaPlayer.OnInfoListener,
         IMediaPlayer.OnErrorListener,
         IMediaPlayer.OnVideoSizeChangedListener,
         IMediaPlayer.OnCompletionListener {
         
         override fun onPrepared(mp: IMediaPlayer?) {
-            // 本次连接成功就绪，清空连续失败计数
-            retryCount = 0
+            if (!isCurrentRequest(origin)) return
             // 自动重连成功，结束“重连中”提示并取消单次重连超时保护
             if (autoRetrying) {
                 autoRetrying = false
@@ -122,13 +121,11 @@ class IJKVideoPlayer(
                 reconnectTimeoutJob = null
                 triggerBuffering(false)
             }
-            triggerPrepared()
-            triggerReady()
             updateMetadata()
 
             updatePositionJob?.cancel()
             updatePositionJob = coroutineScope.launch {
-                while (true) {
+                while (isCurrentRequest(origin)) {
                     triggerCurrentPosition(ijkPlayer.currentPosition)
                     triggerDuration(ijkPlayer.duration)
                     delay(1000)
@@ -137,10 +134,12 @@ class IJKVideoPlayer(
         }
         
         override fun onInfo(mp: IMediaPlayer?, what: Int, extra: Int): Boolean {
+            if (!isCurrentRequest(origin)) return true
             when (what) {
                 IMediaPlayer.MEDIA_INFO_BUFFERING_START -> triggerBuffering(true)
                 IMediaPlayer.MEDIA_INFO_BUFFERING_END -> triggerBuffering(false)
                 IMediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START -> {
+                    triggerReady()
                     triggerIsPlayingChanged(true)
                     // 首帧渲染后解码器已初始化，此时能拿到完整的解码器信息
                     updateMetadata()
@@ -150,6 +149,7 @@ class IJKVideoPlayer(
         }
         
         override fun onError(mp: IMediaPlayer?, what: Int, extra: Int): Boolean {
+            if (!isCurrentRequest(origin)) return true
             log.e("onError what=$what extra=$extra")
             // 网络瞬断/读流中断(-10000/-110/-138)：先对当前线路自动重试，重试耗尽才判定线路失效
             if (what in RETRYABLE_ERROR_CODES && retryCount < MAX_RETRY_COUNT) {
@@ -170,11 +170,13 @@ class IJKVideoPlayer(
             sarNum: Int,
             sarDen: Int
         ) {
+            if (!isCurrentRequest(origin)) return
             triggerResolution(width, height)
             updateMetadata()
         }
         
         override fun onCompletion(mp: IMediaPlayer?) {
+            if (!isCurrentRequest(origin)) return
             triggerIsPlayingChanged(false)
         }
     }
@@ -253,18 +255,8 @@ class IJKVideoPlayer(
             else "audio/$this"
     }
 
-    override fun initialize() {
-        super.initialize()
-        ijkPlayer.apply {
-            setOnPreparedListener(playerListener)
-            setOnInfoListener(playerListener)
-            setOnErrorListener(playerListener)
-            setOnVideoSizeChangedListener(playerListener)
-            setOnCompletionListener(playerListener)
-        }
-    }
-
     override fun release() {
+        currentUrl = null
         updatePositionJob?.cancel()
         prepareJob?.cancel()
         resetReconnectState(endBuffering = true)
@@ -284,6 +276,9 @@ class IJKVideoPlayer(
 
     /** 外部主动发起的播放(切台/换源/重启等)，视为一次全新开始，清空连续失败计数与重连状态 */
     override fun prepare(url: String) {
+        beginPlaybackRequest()
+        updatePositionJob?.cancel()
+        triggerPrepared()
         currentUrl = url
         retryCount = 0
         resetReconnectState(endBuffering = true)
@@ -302,6 +297,7 @@ class IJKVideoPlayer(
 
     /** 在 IO 线程串行执行实际的 prepare 流程 */
     private fun launchPrepare(url: String) {
+        val origin = requestId
         // 开始新一次连接时，取消仍在等待中的自动重试
         autoRetryJob?.cancel()
         autoRetryJob = null
@@ -310,9 +306,18 @@ class IJKVideoPlayer(
             playerMutex.withLock {
                 try {
                     // 期间已切换线路则放弃本次
-                    if (url != currentUrl) return@withLock
+                    if (!isCurrentRequest(origin) || url != currentUrl) return@withLock
 
                     ijkPlayer.reset()
+                    if (!isCurrentRequest(origin)) return@withLock
+                    val listener = createPlayerListener(origin)
+                    ijkPlayer.apply {
+                        setOnPreparedListener(listener)
+                        setOnInfoListener(listener)
+                        setOnErrorListener(listener)
+                        setOnVideoSizeChangedListener(listener)
+                        setOnCompletionListener(listener)
+                    }
                     // 在设置数据源前确保Surface有效
                     if (currentSurface != null) {
                         ijkPlayer.setSurface(currentSurface)
@@ -323,9 +328,9 @@ class IJKVideoPlayer(
                     setOption()
                     ijkPlayer.prepareAsync()
                     // 自动重连场景下启动单次尝试的超时保护
-                    if (autoRetrying) startReconnectTimeout(url)
+                    if (isCurrentRequest(origin) && autoRetrying) startReconnectTimeout(url, origin)
                 } catch (e: Exception) {
-                    handlePrepareError(e)
+                    requestEvent(origin) { handlePrepareError(e) }
                 }
             }
         }
@@ -333,11 +338,12 @@ class IJKVideoPlayer(
 
     /**
      * 对当前线路自动重试(等待时间按 RETRY_DELAYS_MS 序列递增，首次最快)。
-     * 注意不重置 retryCount：只有 onPrepared 成功就绪或外部主动 prepare 时才清零，
+     * 本轮内部重连不清空 retryCount：只有外部主动 prepare 时才清零，
      * 从而保证「连续失败达上限」后能上报换源，避免无限重试同一死链。
      */
     private fun scheduleAutoRetry() {
         val url = currentUrl ?: return
+        val origin = requestId
         retryCount++
         val delayMs = RETRY_DELAYS_MS.getOrElse(retryCount - 1) { RETRY_DELAYS_MS.last() }
         log.w("播放中断，${delayMs}ms 后自动重试当前线路(第 $retryCount/$MAX_RETRY_COUNT 次)")
@@ -349,17 +355,17 @@ class IJKVideoPlayer(
         autoRetryJob?.cancel()
         autoRetryJob = coroutineScope.launch {
             delay(delayMs)
-            if (url != currentUrl) return@launch   // 等待期间已切走
+            if (!isCurrentRequest(origin) || url != currentUrl) return@launch   // 等待期间已切走
             launchPrepare(url)
         }
     }
 
     /** 自动重连单次尝试超时保护：长时间“既不就绪也不报错”时判定线路失效，避免一直卡住 */
-    private fun startReconnectTimeout(url: String) {
+    private fun startReconnectTimeout(url: String, origin: Int) {
         reconnectTimeoutJob?.cancel()
         reconnectTimeoutJob = coroutineScope.launch {
             delay(Configs.videoPlayerLoadTimeout)
-            if (url == currentUrl && autoRetrying) {
+            if (isCurrentRequest(origin) && url == currentUrl && autoRetrying) {
                 log.e("自动重连超过加载超时(${Configs.videoPlayerLoadTimeout}ms)仍未就绪，判定线路失效")
                 failPlayback(-10000)
             }
@@ -383,6 +389,7 @@ class IJKVideoPlayer(
     }
 
     override fun play() {
+        resumeProgressWatch()
         coroutineScope.launch(Dispatchers.IO) {
             playerMutex.withLock {
                 try {
@@ -398,6 +405,7 @@ class IJKVideoPlayer(
     }
 
     override fun pause() {
+        suspendProgressWatch()
         coroutineScope.launch(Dispatchers.IO) {
             playerMutex.withLock {
                 try {
@@ -433,19 +441,21 @@ class IJKVideoPlayer(
     }
 
     override fun stop() {
+        super.stop()
+        val stoppedRequest = requestId
+        currentUrl = null
         updatePositionJob?.cancel()
         prepareJob?.cancel()
         resetReconnectState(endBuffering = true)
         coroutineScope.launch(Dispatchers.IO) {
             playerMutex.withLock {
                 try {
-                    ijkPlayer.stop()
+                    if (requestId == stoppedRequest) ijkPlayer.stop()
                 } catch (e: Exception) {
                     log.e("stop error", e)
                 }
             }
         }
-        super.stop()
     }
 
     // 添加成员变量保存当前Surface

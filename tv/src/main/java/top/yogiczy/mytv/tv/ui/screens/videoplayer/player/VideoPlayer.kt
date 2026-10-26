@@ -1,5 +1,7 @@
 package top.yogiczy.mytv.tv.ui.screens.videoplayer.player
 
+import android.os.Handler
+import android.os.Looper
 import android.view.SurfaceView
 import android.view.TextureView
 import kotlinx.coroutines.CoroutineScope
@@ -13,12 +15,70 @@ abstract class VideoPlayer(
     private val coroutineScope: CoroutineScope,
 ) {
     protected var metadata = Metadata()
+    @Volatile protected var requestId = 0
+        private set
+    @Volatile private var active = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var frameReady = false
+    private var progressWatchPaused = false
+    private var currentPosition: Long? = null
+
+    protected fun isCurrentRequest(id: Int) = active && id == requestId
+
+    protected fun beginPlaybackRequest(): Int {
+        requestId++
+        active = true
+        progressWatchPaused = false
+        loadTimeoutJob?.cancel()
+        interruptJob?.cancel()
+        frameReady = false
+        currentPosition = null
+        return requestId
+    }
+
+    // Capture the origin before posting: an old IO callback cannot become a new UI event.
+    private fun dispatch(action: () -> Unit) {
+        requestEvent(requestId, action)
+    }
+
+    protected fun suspendProgressWatch() {
+        progressWatchPaused = true
+        interruptJob?.cancel()
+    }
+
+    protected fun resumeProgressWatch() {
+        progressWatchPaused = false
+        if (active && frameReady) watchForInterruption()
+    }
+
+    protected fun requestEvent(origin: Int, action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            if (isCurrentRequest(origin)) action()
+        } else {
+            mainHandler.post { if (isCurrentRequest(origin)) action() }
+        }
+    }
+
+    private fun watchForInterruption() {
+        if (progressWatchPaused) return
+        val origin = requestId
+        interruptJob?.cancel()
+        interruptJob = coroutineScope.launch {
+            delay(Configs.videoPlayerLoadTimeout)
+            if (isCurrentRequest(origin)) onInterruptListeners.forEach { it() }
+        }
+    }
 
     open fun initialize() {
         clearAllListeners()
     }
 
     open fun release() {
+        active = false
+        requestId++
+        mainHandler.removeCallbacksAndMessages(null)
+        loadTimeoutJob?.cancel()
+        interruptJob?.cancel()
         clearAllListeners()
     }
 
@@ -31,9 +91,13 @@ abstract class VideoPlayer(
     abstract fun seekTo(position: Long)
 
     open fun stop() {
+        active = false
+        requestId++
+        mainHandler.removeCallbacksAndMessages(null)
         loadTimeoutJob?.cancel()
         interruptJob?.cancel()
-        currentPosition = 0L
+        currentPosition = null
+        frameReady = false
     }
 
     abstract fun setVideoSurfaceView(surfaceView: SurfaceView)
@@ -41,7 +105,6 @@ abstract class VideoPlayer(
 
     private var loadTimeoutJob: Job? = null
     private var interruptJob: Job? = null
-    private var currentPosition = 0L
 
     private val onResolutionListeners = mutableListOf<(width: Int, height: Int) -> Unit>()
     private val onErrorListeners = mutableListOf<(error: PlaybackException?) -> Unit>()
@@ -69,63 +132,63 @@ abstract class VideoPlayer(
         onInterruptListeners.clear()
     }
 
-    protected fun triggerResolution(width: Int, height: Int) {
+    protected fun triggerResolution(width: Int, height: Int) = dispatch {
         onResolutionListeners.forEach { it(width, height) }
     }
 
-    protected fun triggerError(error: PlaybackException?) {
-        onErrorListeners.forEach { it(error) }
-
-        // 仅在真正上报错误时撤销"加载超时"看门狗：
-        // error 为 null 只表示清除错误提示（回到缓冲态也会走这里），
-        // 若此时撤销看门狗，源不可用时会一直停留在缓冲态，既不报错也不触发超时换源。
+    protected fun triggerError(error: PlaybackException?) = dispatch {
         if (error != null) {
             loadTimeoutJob?.cancel()
-            loadTimeoutJob = null
+            interruptJob?.cancel()
+        }
+        onErrorListeners.forEach { it(error) }
+    }
+
+    protected fun triggerReady() = dispatch {
+        if (!frameReady) {
+            frameReady = true
+            loadTimeoutJob?.cancel()
+            watchForInterruption()
+            onReadyListeners.forEach { it() }
         }
     }
 
-    protected fun triggerReady() {
-        onReadyListeners.forEach { it() }
-        loadTimeoutJob?.cancel()
-    }
-
-    protected fun triggerBuffering(buffering: Boolean) {
+    protected fun triggerBuffering(buffering: Boolean) = dispatch {
         onBufferingListeners.forEach { it(buffering) }
     }
 
-    protected fun triggerPrepared() {
-        onPreparedListeners.forEach { it() }
-        loadTimeoutJob?.cancel()
-        loadTimeoutJob = coroutineScope.launch {
-
-            delay(Configs.videoPlayerLoadTimeout)
-            triggerError(PlaybackException.LOAD_TIMEOUT)
-        }
+    protected fun triggerPrepared() = dispatch {
+        val origin = requestId
+        frameReady = false
+        currentPosition = null
         interruptJob?.cancel()
-        interruptJob = null
+        loadTimeoutJob?.cancel()
         metadata = Metadata()
+        loadTimeoutJob = coroutineScope.launch {
+            delay(Configs.videoPlayerLoadTimeout)
+            if (isCurrentRequest(origin)) triggerError(PlaybackException.LOAD_TIMEOUT)
+        }
+        onPreparedListeners.forEach { it() }
     }
 
-    protected fun triggerIsPlayingChanged(isPlaying: Boolean) {
+    protected fun triggerIsPlayingChanged(isPlaying: Boolean) = dispatch {
         onIsPlayingChanged.forEach { it(isPlaying) }
     }
 
-    protected fun triggerDuration(duration: Long) {
+    protected fun triggerDuration(duration: Long) = dispatch {
         onDurationChanged.forEach { it(duration) }
     }
 
-    protected fun triggerMetadata(metadata: Metadata) {
+    protected fun triggerMetadata(metadata: Metadata) = dispatch {
         onMetadataListeners.forEach { it(metadata) }
     }
 
-    protected fun triggerCurrentPosition(position: Long) {
-        if (currentPosition != position) {
-            interruptJob?.cancel()
-            interruptJob = coroutineScope.launch {
-                delay(Configs.videoPlayerLoadTimeout)
-                onInterruptListeners.forEach { it() }
-            }
+    protected fun triggerCurrentPosition(position: Long) = dispatch {
+        val previous = currentPosition
+        if (!progressWatchPaused && previous != null && position != previous) {
+            // Supports audio-only streams and media timelines which restart at zero.
+            triggerReady()
+            watchForInterruption()
         }
         currentPosition = position
         onCurrentPositionChanged.forEach { it(position) }
@@ -166,7 +229,6 @@ abstract class VideoPlayer(
     fun onMetadata(listener: (metadata: Metadata) -> Unit) {
         onMetadataListeners.add(listener)
     }
-
 
     fun onInterrupt(listener: () -> Unit) {
         onInterruptListeners.add(listener)

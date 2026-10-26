@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -27,8 +28,9 @@ import top.yogiczy.mytv.core.data.entities.epg.EpgProgramme
 import top.yogiczy.mytv.core.data.entities.epg.EpgProgrammeReserve
 import top.yogiczy.mytv.core.data.entities.epg.EpgProgrammeReserveList
 import top.yogiczy.mytv.core.data.utils.ChannelUtil
-import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.Loggable
+import top.yogiczy.mytv.tv.ui.screens.playback.PlaybackSession
+import top.yogiczy.mytv.tv.ui.screens.playback.PlaybackPhase
 import top.yogiczy.mytv.tv.ui.material.Snackbar
 import top.yogiczy.mytv.tv.ui.screens.settings.SettingsViewModel
 import top.yogiczy.mytv.tv.ui.screens.videoplayer.VideoPlayerState
@@ -112,13 +114,145 @@ class MainContentState(
             _isVideoPlayerDisplayModeScreenVisible = value
         }
 
+    var playbackSession by mutableStateOf(PlaybackSession())
+        private set
+    var playbackRequestId by mutableIntStateOf(0)
+        private set
+    var isPlaybackActive by mutableStateOf(true)
+        private set
+    private var playbackTimeoutJob: Job? = null
+    private var stablePlaybackJob: Job? = null
+
+    private fun isWebPlayback() = ChannelUtil.isHybridWebViewUrl(
+        playbackSession.urls.getOrElse(playbackSession.currentIndex) { "" },
+    )
+
+    val hasVisibleMenu: Boolean
+        get() = isChannelScreenVisible || isSettingsScreenVisible || isQuickOpScreenVisible ||
+            isEpgScreenVisible || isChannelUrlScreenVisible || isVideoPlayerControllerScreenVisible ||
+            isVideoPlayerDisplayModeScreenVisible
+
+    val isProgrammePlaying: Boolean
+        get() = isPlaybackActive && playbackSession.phase == PlaybackPhase.PLAYING &&
+            !videoPlayerState.isBuffering && (isWebPlayback() || videoPlayerState.isPlaying)
+
+    private fun watchStablePlayback() {
+        if (stablePlaybackJob != null || playbackSession.failures.isEmpty()) return
+        val origin = playbackRequestId
+        stablePlaybackJob = coroutineScope.launch {
+            delay(15_000L)
+            if (origin == playbackRequestId && playbackSession.phase == PlaybackPhase.PLAYING
+                && !videoPlayerState.isBuffering
+                && (isWebPlayback() || videoPlayerState.isPlaying)) playbackSession = playbackSession.stable()
+            stablePlaybackJob = null
+        }
+    }
+
+    fun playbackBuffering(buffering: Boolean, requestId: Int = playbackRequestId) {
+        if (!isPlaybackActive || requestId != playbackRequestId) return
+        videoPlayerState.isBuffering = buffering
+        if (buffering) {
+            stablePlaybackJob?.cancel()
+            stablePlaybackJob = null
+        } else if (playbackSession.phase == PlaybackPhase.PLAYING) watchStablePlayback()
+    }
+
+    fun webPageLoading(requestId: Int) {
+        if (!isPlaybackActive || requestId != playbackRequestId || playbackSession.phase != PlaybackPhase.PLAYING) return
+        stablePlaybackJob?.cancel()
+        stablePlaybackJob = null
+        playbackSession = playbackSession.copy(phase = PlaybackPhase.LOADING)
+        playbackTimeoutJob?.cancel()
+        playbackTimeoutJob = coroutineScope.launch {
+            delay(settingsViewModel.videoPlayerLoadTimeout)
+            playbackFailed("LOAD_TIMEOUT", requestId)
+        }
+    }
+
+    fun playbackReady(requestId: Int = playbackRequestId) {
+        if (!isPlaybackActive || requestId != playbackRequestId || playbackSession.phase == PlaybackPhase.FAILED) return
+        playbackTimeoutJob?.cancel()
+        if (playbackSession.phase == PlaybackPhase.PLAYING) return
+        playbackSession = playbackSession.ready()
+        playbackBuffering(false)
+        watchStablePlayback()
+        val playingUrl = playbackSession.urls.getOrNull(playbackSession.currentIndex)
+        playingUrl?.let { settingsViewModel.iptvPlayableHostList += getUrlHost(it) }
+        if (playingUrl in _currentChannel.urlList) {
+            settingsViewModel.setIptvChannelUrlIdx(_currentChannel.name, _currentChannelUrlIdx)
+        }
+    }
+
+    fun playbackFailed(error: String, requestId: Int = playbackRequestId) {
+        if (!isPlaybackActive || requestId != playbackRequestId || playbackSession.phase == PlaybackPhase.FAILED) return
+        playbackTimeoutJob?.cancel()
+        stablePlaybackJob?.cancel()
+        stablePlaybackJob = null
+        if (_currentPlaybackEpgProgramme != null) {
+            // Resume live on the same line once; subsequent live failures use normal failover.
+            changeCurrentChannel(_currentChannel, _currentChannelUrlIdx, force = true)
+            return
+        }
+        settingsViewModel.iptvPlayableHostList -= getUrlHost(
+            playbackSession.urls.getOrElse(playbackSession.currentIndex) { "" },
+        )
+        playbackSession = playbackSession.fail(error)
+        if (playbackSession.phase == PlaybackPhase.FAILED) {
+            // Invalidate callbacks from the failed renderer before stopping it.
+            playbackRequestId++
+            videoPlayerState.stop()
+            _isTempChannelScreenVisible = true
+        } else {
+            // The subscription may have refreshed while the current round was playing.
+            // Keep its attempt snapshot separate from the latest channel list and UI index.
+            val nextUrl = playbackSession.urls[playbackSession.currentIndex]
+            _currentChannelUrlIdx = _currentChannel.urlList.indexOf(nextUrl).coerceAtLeast(0)
+            startPlaybackAttempt()
+        }
+    }
+
+    fun suspendPlayback() {
+        isPlaybackActive = false
+        stablePlaybackJob?.cancel()
+        stablePlaybackJob = null
+        playbackRequestId++
+        playbackTimeoutJob?.cancel()
+        videoPlayerState.stop()
+    }
+
+    fun retryPlayback() {
+        changeCurrentChannel(_currentChannel, 0, _currentPlaybackEpgProgramme, force = true)
+    }
+
+    private fun startPlaybackAttempt() {
+        isPlaybackActive = true
+        stablePlaybackJob?.cancel()
+        stablePlaybackJob = null
+        playbackTimeoutJob?.cancel()
+        playbackRequestId++
+        val requestId = playbackRequestId
+        var url = playbackSession.urls.getOrNull(playbackSession.currentIndex)
+        if (url == null) {
+            playbackSession = playbackSession.copy(phase = PlaybackPhase.FAILED)
+            videoPlayerState.stop()
+            return
+        }
+        _currentPlaybackEpgProgramme?.let { programme ->
+            val format = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
+            val query = "playseek=${format.format(programme.startAt)}-${format.format(programme.endAt)}"
+            url = if (URI(url).query.isNullOrBlank()) "$url?$query" else "$url&$query"
+        }
+        // Covers both native and web startup, including pages which never finish loading.
+        playbackTimeoutJob = coroutineScope.launch {
+            delay(settingsViewModel.videoPlayerLoadTimeout)
+            playbackFailed("LOAD_TIMEOUT", requestId)
+        }
+        videoPlayerState.isBuffering = false
+        if (isWebPlayback()) videoPlayerState.stop()
+        else videoPlayerState.prepare(url!!)
+    }
+
     init {
-        val channelGroupList = channelGroupListProvider()
-
-        changeCurrentChannel(channelGroupList.channelList.getOrElse(settingsViewModel.iptvLastChannelIdx) {
-            channelGroupList.channelList.firstOrNull() ?: Channel()
-        })
-
         /* 新增：监听 RESTART_PLAY 广播，收到后重新 prepare 当前频道 */
         coroutineScope.launch {
             suspendCancellableCoroutine<Unit> { cont ->
@@ -142,39 +276,30 @@ class MainContentState(
         }
 
         videoPlayerState.onReady {
-            settingsViewModel.iptvPlayableHostList += getUrlHost(_currentChannel.urlList[_currentChannelUrlIdx])
-            coroutineScope.launch {
-                val name = _currentChannel.name
-                val urlIdx = _currentChannelUrlIdx
-                delay(Constants.UI_TEMP_CHANNEL_SCREEN_SHOW_DURATION)
-                if (name == _currentChannel.name && urlIdx == _currentChannelUrlIdx) {
-                    _isTempChannelScreenVisible = false
-                    settingsViewModel.setIptvChannelUrlIdx(_currentChannel.name, _currentChannelUrlIdx)
-//                    settingsViewModel.iptvChannelUrlIdx[_currentChannel.name]= _currentChannelUrlIdx
-                }
-            }
+            if (!isWebPlayback()) playbackReady()
         }
-
         videoPlayerState.onError {
-            if (_currentPlaybackEpgProgramme != null) {
-                // 回放播放错误时，切换到直播
-                if (_currentChannelUrlIdx < _currentChannel.urlList.size - 1) {
-                    changeCurrentChannel(_currentChannel, _currentChannelUrlIdx)
+            if (!isWebPlayback()) playbackFailed(videoPlayerState.error ?: "UNKNOWN")
+        }
+        videoPlayerState.onBuffering { if (!isWebPlayback()) playbackBuffering(it) }
+        videoPlayerState.onPlayingChanged { playing ->
+            if (!isWebPlayback()) {
+                if (!playing) {
+                    stablePlaybackJob?.cancel()
+                    stablePlaybackJob = null
+                } else if (playbackSession.phase == PlaybackPhase.PLAYING && !videoPlayerState.isBuffering) {
+                    watchStablePlayback()
                 }
-                return@onError
-            }
-
-            settingsViewModel.iptvPlayableHostList -= getUrlHost(_currentChannel.urlList[_currentChannelUrlIdx])
-
-            if (_currentChannelUrlIdx < _currentChannel.urlList.size - 1) {
-                changeCurrentChannel(_currentChannel, _currentChannelUrlIdx + 1)
             }
         }
-
         videoPlayerState.onInterrupt {
-            // 播放位置长时间不推进视为卡住，需强制重新拉流恢复
-            restartCurrentChannel()
+            if (!isWebPlayback()) playbackFailed("PLAYBACK_INTERRUPTED")
         }
+        val channelGroupList = channelGroupListProvider()
+
+        changeCurrentChannel(channelGroupList.channelList.getOrElse(settingsViewModel.iptvLastChannelIdx) {
+            channelGroupList.channelList.firstOrNull() ?: Channel()
+        })
     }
 
     private fun getPrevFavoriteChannel(): Channel? {
@@ -263,40 +388,13 @@ class MainContentState(
     ) {
         if (!force && channel == _currentChannel && urlIdx == _currentChannelUrlIdx && playbackEpgProgramme == _currentPlaybackEpgProgramme) return
 
-        if (channel == _currentChannel && urlIdx != _currentChannelUrlIdx) {
-            settingsViewModel.iptvPlayableHostList -= getUrlHost(_currentChannel.urlList[_currentChannelUrlIdx])
-        }
-
         _isTempChannelScreenVisible = true
-
         _currentChannel = channel
-        settingsViewModel.iptvLastChannelIdx =
-            channelGroupListProvider().channelIdx(_currentChannel)
-
-        _currentChannelUrlIdx = getUrlIdx(_currentChannel.urlList, urlIdx)
-
+        settingsViewModel.iptvLastChannelIdx = channelGroupListProvider().channelIdx(channel)
+        _currentChannelUrlIdx = if (channel.urlList.isEmpty()) 0 else getUrlIdx(channel.urlList, urlIdx)
         _currentPlaybackEpgProgramme = playbackEpgProgramme
-
-        var url = _currentChannel.urlList[_currentChannelUrlIdx]
-        if (_currentPlaybackEpgProgramme != null) {
-            val timeFormat = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
-            val query = listOf(
-                "playseek=",
-                timeFormat.format(_currentPlaybackEpgProgramme!!.startAt),
-                "-",
-                timeFormat.format(_currentPlaybackEpgProgramme!!.endAt),
-            ).joinToString("")
-            url = if (URI(url).query.isNullOrBlank()) "$url?$query" else "$url&$query"
-//            url = ChannelUtil.urlToCanPlayback(url) //电信RTSP不需要替换
-        }
-
-        log.d("播放${_currentChannel.name}（${_currentChannelUrlIdx + 1}/${_currentChannel.urlList.size}）: $url")
-
-        if (ChannelUtil.isHybridWebViewUrl(url)) {
-            videoPlayerState.stop()
-        } else {
-            videoPlayerState.prepare(url)
-        }
+        playbackSession = PlaybackSession(channel.urlList.toList(), _currentChannelUrlIdx)
+        startPlaybackAttempt()
     }
 
     /**
@@ -333,9 +431,8 @@ class MainContentState(
 
         if (target == oldChannel || target.urlList.isEmpty()) return
 
-        // 线路数变少导致旧索引越界时回落到 0，而不是压到末位：
-        // 后者会让 onError 因「idx < size-1」不成立而放弃换源重试。
-        // 只改索引不影响正在播放的流，实际生效要等下次切台或换源。
+        // The active attempt keeps its own source snapshot. Only rebind the channel
+        // UI index here; retry or the next explicit channel selection uses the new URLs.
         _currentChannelUrlIdx = _currentChannelUrlIdx.takeIf { it <= target.urlList.lastIndex } ?: 0
         _currentChannel = target
         settingsViewModel.iptvLastChannelIdx = channelGroupListProvider().channelIdx(target)
@@ -350,7 +447,6 @@ class MainContentState(
      * 用于「频道/线路/回看节目都没变、但仍需重新拉流」的场景：
      * - 应用从后台回到前台：直播流在后台仍在缓冲，回到前台后播放器继续消费
      *   后台期间累积的缓存，画面停留在离开时的旧内容，必须重新 prepare 才能拉到最新画面。
-     * - 播放卡住（onInterrupt）：需要重新建流恢复。
      * - RESTART_PLAY 广播。
      *
      * 直接调用 changeCurrentChannel 会被其幂等守卫拦截（三者都未变化），故需 force。
@@ -412,6 +508,7 @@ class MainContentState(
         channel: Channel = _currentChannel,
         urlIdx: Int? = _currentChannelUrlIdx,
     ): Boolean {
+        if (channel.urlList.isEmpty()) return false
         val currentUrlIdx = getUrlIdx(channel.urlList, urlIdx)
         return ChannelUtil.urlSupportPlayback(channel.urlList[currentUrlIdx])
     }

@@ -7,15 +7,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList
 import top.yogiczy.mytv.core.data.entities.channel.ChannelGroupList.Companion.channelIdx
@@ -28,7 +32,10 @@ import top.yogiczy.mytv.core.data.entities.epg.EpgList.Companion.recentProgramme
 import top.yogiczy.mytv.core.data.entities.epg.EpgProgrammeReserveList
 import top.yogiczy.mytv.core.data.repositories.epg.EpgRepository
 import top.yogiczy.mytv.core.data.repositories.iptv.IptvRepository
+import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.ChannelUtil
+import top.yogiczy.mytv.tv.ui.screens.playback.PlaybackStatus
+import top.yogiczy.mytv.tv.ui.screens.playback.PlaybackPhase
 import top.yogiczy.mytv.tv.ui.material.PopupContent
 import top.yogiczy.mytv.tv.ui.material.Snackbar
 import top.yogiczy.mytv.tv.ui.material.Visible
@@ -79,10 +86,31 @@ fun MainContent(
         videoPlayerState = videoPlayerState,
         channelGroupListProvider = { filteredChannelGroupList },
     )
+    val playbackFocus = remember { FocusRequester() }
     val channelNumberSelectState = rememberChannelNumberSelectState {
         val idx = it.toInt() - 1
         filteredChannelGroupList.channelList.getOrNull(idx)?.let { channel ->
             mainContentState.changeCurrentChannel(channel)
+        }
+    }
+
+    val hasVisibleMenu = mainContentState.hasVisibleMenu || channelNumberSelectState.channelNumber.isNotEmpty()
+    val isProgrammePlaying = mainContentState.isProgrammePlaying
+    LaunchedEffect(
+        mainContentState.playbackRequestId,
+        isProgrammePlaying,
+        hasVisibleMenu,
+        mainContentState.isTempChannelScreenVisible,
+    ) {
+        if (!isProgrammePlaying || hasVisibleMenu) {
+            // Keep the information available until playback starts and the menus close.
+            mainContentState.isTempChannelScreenVisible = true
+        } else if (mainContentState.isTempChannelScreenVisible) {
+            delay(Constants.UI_TEMP_CHANNEL_SCREEN_SHOW_DURATION)
+            if (mainContentState.isProgrammePlaying && !mainContentState.hasVisibleMenu &&
+                channelNumberSelectState.channelNumber.isEmpty()) {
+                mainContentState.isTempChannelScreenVisible = false
+            }
         }
     }
 
@@ -96,7 +124,10 @@ fun MainContent(
         var wasStopped = false
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_STOP -> wasStopped = true
+                Lifecycle.Event.ON_STOP -> {
+                    wasStopped = true
+                    mainContentState.suspendPlayback()
+                }
                 Lifecycle.Event.ON_START -> {
                     if (wasStopped) {
                         wasStopped = false
@@ -126,6 +157,7 @@ fun MainContent(
             .onPreviewKeyEvent {
                 false
             }
+            .focusRequester(playbackFocus)
             .popupable()
             .captureBackKey {
                 if(mainContentState.currentPlaybackEpgProgramme!=null){
@@ -135,30 +167,32 @@ fun MainContent(
             }
             .handleKeyEvents(
                 onUp = {
+                    if (mainContentState.playbackSession.phase == PlaybackPhase.FAILED) playbackFocus.requestFocus()
                     if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentChannelToNext()
                     else mainContentState.changeCurrentChannelToPrev()
                 },
                 onDown = {
+                    if (mainContentState.playbackSession.phase == PlaybackPhase.FAILED) playbackFocus.requestFocus()
                     if (settingsViewModel.iptvChannelChangeFlip) mainContentState.changeCurrentChannelToPrev()
                     else mainContentState.changeCurrentChannelToNext()
                 },
-                onLeft = {
-                    if (mainContentState.currentChannel.urlList.size > 1) {
+                onLeft = if (mainContentState.playbackSession.phase == PlaybackPhase.FAILED) null else ({
+                    if (mainContentState.playbackSession.phase != PlaybackPhase.FAILED && mainContentState.currentChannel.urlList.size > 1) {
                         mainContentState.changeCurrentChannel(
                             mainContentState.currentChannel,
                             mainContentState.currentChannelUrlIdx - 1,
                         )
                     }
-                },
-                onRight = {
-                    if (mainContentState.currentChannel.urlList.size > 1) {
+                }),
+                onRight = if (mainContentState.playbackSession.phase == PlaybackPhase.FAILED) null else ({
+                    if (mainContentState.playbackSession.phase != PlaybackPhase.FAILED && mainContentState.currentChannel.urlList.size > 1) {
                         mainContentState.changeCurrentChannel(
                             mainContentState.currentChannel,
                             mainContentState.currentChannelUrlIdx + 1,
                         )
                     }
-                },
-                onSelect = { mainContentState.isChannelScreenVisible = true },
+                }),
+                onSelect = if (mainContentState.playbackSession.phase == PlaybackPhase.FAILED) null else { { mainContentState.isChannelScreenVisible = true } },
                 onLongSelect = { mainContentState.isQuickOpScreenVisible = true },
                 onSettings = { mainContentState.isQuickOpScreenVisible = true },
                 onLongLeft = { mainContentState.isEpgScreenVisible = true },
@@ -176,7 +210,7 @@ fun MainContent(
                     else mainContentState.changeCurrentChannelToNext()
                 },
                 onSwipeRight = {
-                    if (mainContentState.currentChannel.urlList.size > 1) {
+                    if (mainContentState.playbackSession.phase != PlaybackPhase.FAILED && mainContentState.currentChannel.urlList.size > 1) {
                         mainContentState.changeCurrentChannel(
                             mainContentState.currentChannel,
                             mainContentState.currentChannelUrlIdx - 1,
@@ -184,7 +218,7 @@ fun MainContent(
                     }
                 },
                 onSwipeLeft = {
-                    if (mainContentState.currentChannel.urlList.size > 1) {
+                    if (mainContentState.playbackSession.phase != PlaybackPhase.FAILED && mainContentState.currentChannel.urlList.size > 1) {
                         mainContentState.changeCurrentChannel(
                             mainContentState.currentChannel,
                             mainContentState.currentChannelUrlIdx + 1,
@@ -198,18 +232,34 @@ fun MainContent(
             showMetadataProvider = { settingsViewModel.debugShowVideoPlayerMetadata },
         )
 
-        Visible({ ChannelUtil.isHybridWebViewUrl(mainContentState.currentChannel.urlList[mainContentState.currentChannelUrlIdx]) }) {
-            WebViewScreen(
-                urlProvider = { mainContentState.currentChannel.urlList[mainContentState.currentChannelUrlIdx] },
-                onVideoResolutionChanged = { width, height ->
-                    videoPlayerState.metadata = videoPlayerState.metadata.copy(
-                        videoWidth = width,
-                        videoHeight = height,
-                    )
-                    mainContentState.isTempChannelScreenVisible = false
-                },
-            )
+        val webPlayback = mainContentState.playbackSession.urls
+            .getOrNull(mainContentState.playbackSession.currentIndex)?.let(ChannelUtil::isHybridWebViewUrl) == true
+        if (webPlayback && mainContentState.isPlaybackActive && mainContentState.playbackSession.phase != PlaybackPhase.FAILED) {
+            key(mainContentState.playbackRequestId) {
+                val requestId = mainContentState.playbackRequestId
+                WebViewScreen(
+                    urlProvider = { mainContentState.playbackSession.urls[mainContentState.playbackSession.currentIndex] },
+                    onError = { mainContentState.playbackFailed(it, requestId) },
+                    onLoading = { mainContentState.webPageLoading(requestId) },
+                    onBuffering = { mainContentState.playbackBuffering(it, requestId) },
+                    onVideoResolutionChanged = { width, height ->
+                        if (requestId != mainContentState.playbackRequestId) return@WebViewScreen
+                        videoPlayerState.metadata = videoPlayerState.metadata.copy(videoWidth = width, videoHeight = height)
+                        mainContentState.playbackReady(requestId)
+                    },
+                )
+            }
         }
+        PlaybackStatus(
+            session = mainContentState.playbackSession,
+            requestId = mainContentState.playbackRequestId,
+            buffering = videoPlayerState.isBuffering,
+            onRetry = {
+                playbackFocus.requestFocus()
+                mainContentState.retryPlayback()
+            },
+            allowFocus = !hasVisibleMenu,
+        )
     }
 
     Visible({ settingsViewModel.uiShowEpgProgrammePermanentProgress }) {
@@ -223,13 +273,7 @@ fun MainContent(
     }
 
     Visible({
-        !mainContentState.isTempChannelScreenVisible
-                && !mainContentState.isChannelScreenVisible
-                && !mainContentState.isSettingsScreenVisible
-                && !mainContentState.isQuickOpScreenVisible
-                && !mainContentState.isEpgScreenVisible
-                && !mainContentState.isChannelUrlScreenVisible
-                && channelNumberSelectState.channelNumber.isEmpty()
+        !mainContentState.isTempChannelScreenVisible && !hasVisibleMenu
     }) {
         DatetimeScreen(showModeProvider = { settingsViewModel.uiTimeShowMode })
     }
@@ -237,13 +281,7 @@ fun MainContent(
     ChannelNumberSelectScreen(channelNumberProvider = { channelNumberSelectState.channelNumber })
 
     Visible({
-        mainContentState.isTempChannelScreenVisible
-                && !mainContentState.isChannelScreenVisible
-                && !mainContentState.isSettingsScreenVisible
-                && !mainContentState.isQuickOpScreenVisible
-                && !mainContentState.isEpgScreenVisible
-                && !mainContentState.isChannelUrlScreenVisible
-                && channelNumberSelectState.channelNumber.isEmpty()
+        mainContentState.isTempChannelScreenVisible && !hasVisibleMenu
     }) {
         ChannelTempScreen(
             channelProvider = { mainContentState.currentChannel },
@@ -298,7 +336,7 @@ fun MainContent(
     ) {
         ChannelUrlScreen(
             channelProvider = { mainContentState.currentChannel },
-            currentUrlProvider = { mainContentState.currentChannel.urlList[mainContentState.currentChannelUrlIdx] },
+            currentUrlProvider = { mainContentState.currentChannel.urlList.getOrElse(mainContentState.currentChannelUrlIdx) { "" } },
             onUrlSelected = {
                 mainContentState.isChannelUrlScreenVisible = false
                 mainContentState.changeCurrentChannel(

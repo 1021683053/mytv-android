@@ -84,6 +84,7 @@ class Media3VideoPlayer(
 
     /** IO 类错误（瞬态，如流中断）已重试次数；源不可达类错误不重试 */
     private var ioRetryCount = 0
+    private var recoveryRetryCount = 0
     private var ioRetryJob: Job? = null
 
     /** 瞬态 IO 错误的最大重试次数，超过即上报错误交由上层切换下一个源 */
@@ -91,7 +92,6 @@ class Media3VideoPlayer(
 
     /** 瞬态 IO 错误的重试间隔 */
     private val ioRetryIntervalMs = 1000L
-
 
     /**
      * 为 RTSP 连接建立过程加超时的 SocketFactory。
@@ -179,9 +179,8 @@ class Media3VideoPlayer(
     private fun rtspSocketFactory(): SocketFactory =
         TimeoutSocketFactory(Configs.videoPlayerLoadTimeout.coerceIn(1_000L, 5_000L).toInt())
 
-
     private fun getMediaSource(uri: Uri, contentType: Int? = null): MediaSource? {
-        val mediaItem = MediaItem.fromUri(uri)
+        val mediaItem = MediaItem.Builder().setUri(uri).setMediaId(requestId.toString()).build()
 
         if (uri.toString().startsWith("rtp://")) {
             return RtspMediaSource.Factory()
@@ -245,7 +244,6 @@ class Media3VideoPlayer(
 
         if (mediaSource != null) {
             contentTypeAttempts[contentType ?: Util.inferContentType(uri)] = true
-            ioRetryCount = 0
             videoPlayer.setMediaSource(mediaSource)
             videoPlayer.prepare()
             videoPlayer.play()
@@ -255,20 +253,71 @@ class Media3VideoPlayer(
         updatePositionJob = null
     }
 
-    private val playerListener = object : Player.Listener {
+    private var playerListener: Player.Listener? = null
+    private var metadataListener: AnalyticsListener? = null
+
+    private fun createPlayerListener(origin: Int) = object : Player.Listener {
         override fun onVideoSizeChanged(videoSize: VideoSize) {
+            if (!isCurrentRequest(origin)) return
             triggerResolution(videoSize.width, videoSize.height)
         }
 
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (!isCurrentRequest(origin)) return
+            if (playbackState == Player.STATE_BUFFERING) {
+                triggerError(null)
+                triggerBuffering(true)
+            } else if (playbackState == Player.STATE_READY) {
+                ioRetryJob?.cancel()
+                ioRetryJob = null
+                updatePositionJob?.cancel()
+                updatePositionJob = coroutineScope.launch {
 
-        override fun onPlayerError(ex: androidx.media3.common.PlaybackException) {
+                    while (true) {
+                        if (!isCurrentRequest(origin)) break
+                        if (videoPlayer.isPlaying) triggerCurrentPosition(videoPlayer.currentPosition)
+                        delay(1000)
+                    }
+                }
+
+                triggerDuration(videoPlayer.duration)
+            }
+
+            if (playbackState != Player.STATE_BUFFERING) {
+                triggerBuffering(false)
+            }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (!isCurrentRequest(origin)) return
+            triggerIsPlayingChanged(isPlaying)
+        }
+    }
+
+    private fun isCurrentEvent(origin: Int, eventTime: AnalyticsListener.EventTime): Boolean =
+        isCurrentRequest(origin) && !eventTime.timeline.isEmpty &&
+            eventTime.windowIndex in 0 until eventTime.timeline.windowCount &&
+            eventTime.timeline.getWindow(eventTime.windowIndex, androidx.media3.common.Timeline.Window())
+                .mediaItem.mediaId == origin.toString()
+
+    private fun createMetadataListener(origin: Int) = object : AnalyticsListener {
+        override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+            if (isCurrentEvent(origin, eventTime)) triggerReady()
+        }
+
+        override fun onPlayerError(eventTime: AnalyticsListener.EventTime, ex: androidx.media3.common.PlaybackException) {
+            if (!isCurrentEvent(origin, eventTime)) return
             log.e("onPlayerError", ex)
 
             when (ex.errorCode) {
                 androidx.media3.common.PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW,
                 androidx.media3.common.PlaybackException.ERROR_CODE_DECODING_FAILED -> {
-                    videoPlayer.seekToDefaultPosition()
-                    videoPlayer.prepare()
+                    if (recoveryRetryCount++ == 0) {
+                        videoPlayer.seekToDefaultPosition()
+                        videoPlayer.prepare()
+                    } else {
+                        triggerError(PlaybackException(ex.errorCodeName, ex.errorCode))
+                    }
                 }
 
                 // 网络/数据源类错误（RTSP 等统一上报为 IO_UNSPECIFIED）：
@@ -287,8 +336,10 @@ class Media3VideoPlayer(
                         ioRetryJob?.cancel()
                         ioRetryJob = coroutineScope.launch {
                             delay(ioRetryIntervalMs)
-                            videoPlayer.seekToDefaultPosition()
-                            videoPlayer.prepare()
+                            if (isCurrentRequest(origin)) {
+                                videoPlayer.seekToDefaultPosition()
+                                videoPlayer.prepare()
+                            }
                         }
                     } else {
                         triggerError(PlaybackException(ex.errorCodeName, ex.errorCode))
@@ -321,47 +372,12 @@ class Media3VideoPlayer(
             }
         }
 
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_BUFFERING) {
-                triggerError(null)
-                triggerBuffering(true)
-            } else if (playbackState == Player.STATE_READY) {
-                ioRetryCount = 0
-                ioRetryJob?.cancel()
-                ioRetryJob = null
-                triggerReady()
-
-                updatePositionJob?.cancel()
-                updatePositionJob = coroutineScope.launch {
-
-                    while (true) {
-                        val livePosition =
-                            System.currentTimeMillis() - videoPlayer.currentLiveOffset
-
-                        triggerCurrentPosition(if (livePosition > 0) livePosition else videoPlayer.currentPosition)
-                        delay(1000)
-                    }
-                }
-
-                triggerDuration(videoPlayer.duration)
-            }
-
-            if (playbackState != Player.STATE_BUFFERING) {
-                triggerBuffering(false)
-            }
-        }
-
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            triggerIsPlayingChanged(isPlaying)
-        }
-    }
-
-    private val metadataListener = object : AnalyticsListener {
         override fun onVideoInputFormatChanged(
             eventTime: AnalyticsListener.EventTime,
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
+            if (!isCurrentEvent(origin, eventTime)) return
             metadata = metadata.copy(
                 videoMimeType = format.sampleMimeType ?: "",
                 videoWidth = format.width,
@@ -380,6 +396,7 @@ class Media3VideoPlayer(
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
         ) {
+            if (!isCurrentEvent(origin, eventTime)) return
             metadata = metadata.copy(videoDecoder = decoderName)
             triggerMetadata(metadata)
         }
@@ -389,6 +406,7 @@ class Media3VideoPlayer(
             format: Format,
             decoderReuseEvaluation: DecoderReuseEvaluation?,
         ) {
+            if (!isCurrentEvent(origin, eventTime)) return
             metadata = metadata.copy(
                 audioMimeType = format.sampleMimeType ?: "",
                 audioChannels = format.channelCount,
@@ -403,6 +421,7 @@ class Media3VideoPlayer(
             initializedTimestampMs: Long,
             initializationDurationMs: Long,
         ) {
+            if (!isCurrentEvent(origin, eventTime)) return
             metadata = metadata.copy(audioDecoder = decoderName)
             triggerMetadata(metadata)
         }
@@ -426,28 +445,39 @@ class Media3VideoPlayer(
 
     override fun initialize() {
         super.initialize()
-        videoPlayer.addListener(playerListener)
-        videoPlayer.addAnalyticsListener(metadataListener)
         LogGate.removeListener(onDebugLogChanged)
         LogGate.addListener(onDebugLogChanged)
         syncEventLogger()
     }
 
     override fun release() {
+        super.release()
+        updatePositionJob?.cancel()
         ioRetryJob?.cancel()
         ioRetryJob = null
         LogGate.removeListener(onDebugLogChanged)
-        videoPlayer.removeListener(playerListener)
-        videoPlayer.removeAnalyticsListener(metadataListener)
+        playerListener?.let { videoPlayer.removeListener(it) }
+        metadataListener?.let { videoPlayer.removeAnalyticsListener(it) }
         if (eventLoggerAttached) {
             videoPlayer.removeAnalyticsListener(eventLogger)
             eventLoggerAttached = false
         }
         videoPlayer.release()
-        super.release()
     }
 
     override fun prepare(url: String) {
+        val origin = beginPlaybackRequest()
+        updatePositionJob?.cancel()
+        playerListener?.let { videoPlayer.removeListener(it) }
+        metadataListener?.let { videoPlayer.removeAnalyticsListener(it) }
+        videoPlayer.stop()
+        videoPlayer.clearMediaItems()
+        playerListener = createPlayerListener(origin).also { videoPlayer.addListener(it) }
+        metadataListener = createMetadataListener(origin).also { videoPlayer.addAnalyticsListener(it) }
+        ioRetryCount = 0
+        recoveryRetryCount = 0
+        ioRetryJob?.cancel()
+        ioRetryJob = null
         contentTypeAttempts.clear()
         prepare(Uri.parse(url.let {
             if (url.endsWith("?")) "${it}t" else it
@@ -455,10 +485,12 @@ class Media3VideoPlayer(
     }
 
     override fun play() {
+        resumeProgressWatch()
         videoPlayer.play()
     }
 
     override fun pause() {
+        suspendProgressWatch()
         videoPlayer.pause()
     }
 
@@ -467,11 +499,11 @@ class Media3VideoPlayer(
     }
 
     override fun stop() {
+        super.stop()
         ioRetryJob?.cancel()
         ioRetryJob = null
         videoPlayer.stop()
         updatePositionJob?.cancel()
-        super.stop()
     }
 
     override fun setVideoSurfaceView(surfaceView: SurfaceView) {
