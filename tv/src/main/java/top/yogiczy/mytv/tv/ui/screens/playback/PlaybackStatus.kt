@@ -41,18 +41,19 @@ fun PlaybackStatus(
     modifier: Modifier = Modifier,
     allowFocus: Boolean = true,
 ) {
-    // Startup buffering may toggle during an internal retry. Keep one continuous
-    // loading indicator; only a new request or a playback interruption starts a new delay.
+    // Show startup immediately; delay only brief buffering during playback.
     val isRebuffering = session.phase == PlaybackPhase.PLAYING && buffering
     var delayed by remember(requestId, isRebuffering) { mutableStateOf(false) }
     LaunchedEffect(requestId, isRebuffering) {
-        kotlinx.coroutines.delay(800)
-        delayed = true
+        if (isRebuffering) {
+            kotlinx.coroutines.delay(800)
+            delayed = true
+        }
     }
     val failed = session.phase == PlaybackPhase.FAILED
     val switching = session.phase == PlaybackPhase.SWITCHING
     if (session.phase != PlaybackPhase.PLAYING) Box(modifier.fillMaxSize().background(Color.Black))
-    if (!failed && !switching && (!delayed || (session.phase == PlaybackPhase.PLAYING && !buffering))) return
+    if (session.phase == PlaybackPhase.PLAYING && (!buffering || !delayed)) return
     var showLogs by remember(requestId) { mutableStateOf(false) }
     val retryFocus = remember { FocusRequester() }
     val logFocus = remember { FocusRequester() }
