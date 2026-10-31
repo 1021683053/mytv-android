@@ -1,10 +1,14 @@
 package top.yogiczy.mytv.core.data.repositories.epg
 
 import android.util.Xml
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import okhttp3.Request
 import org.xmlpull.v1.XmlPullParser
 import top.yogiczy.mytv.core.data.entities.epg.Epg
@@ -13,14 +17,12 @@ import top.yogiczy.mytv.core.data.entities.epg.EpgProgramme
 import top.yogiczy.mytv.core.data.entities.epg.EpgProgrammeList
 import top.yogiczy.mytv.core.data.entities.epgsource.EpgSource
 import top.yogiczy.mytv.core.data.network.OkHttp
-import top.yogiczy.mytv.core.data.network.await
 import top.yogiczy.mytv.core.data.repositories.FileCacheRepository
 import top.yogiczy.mytv.core.data.repositories.epg.fetcher.EpgFetcher.Companion.fetchStream
 import top.yogiczy.mytv.core.data.utils.ChannelUtil
 import top.yogiczy.mytv.core.data.utils.Constants
 import top.yogiczy.mytv.core.data.utils.Logger
 import top.yogiczy.mytv.core.data.utils.SP
-import top.yogiczy.mytv.core.util.utils.removeBom
 import java.io.File
 import java.io.FileInputStream
 import java.io.InputStream
@@ -32,8 +34,15 @@ import java.util.concurrent.TimeUnit
  * 节目单获取
  */
 class EpgRepository(
-    source: EpgSource,
+    private val source: EpgSource,
 ) {
+    companion object {
+        // Bound memory to the most recently requested source/filter combination.
+        private val refreshMutex = Mutex()
+        private var parsedKey: List<Any>? = null
+        private var parsedValue: EpgList? = null
+    }
+
     private val log = Logger.create(EpgRepository::class.java.simpleName)
     private val epgXmlRepository = EpgXmlRepository(source.url)
 
@@ -52,6 +61,8 @@ class EpgRepository(
 
         val channelNameMap = mutableMapOf<String, String>()
         val programmeMap = mutableMapOf<String, MutableList<EpgProgramme>>()
+        val intervals = mutableMapOf<String, ProgrammeIntervalIndex>()
+        val context = currentCoroutineContext()
         val lowerFilteredChannels = filteredChannels.map { it.lowercase() }.toSet()
 
         fun getSafeText(): String {
@@ -63,6 +74,7 @@ class EpgRepository(
         }
 
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
+            context.ensureActive()
             try {
                 if (parser.eventType != XmlPullParser.START_TAG) continue
 
@@ -77,6 +89,8 @@ class EpgRepository(
                         var name = ""
                         val depth = parser.depth
                         while (!(parser.next() == XmlPullParser.END_TAG && parser.depth == depth)) {
+                            context.ensureActive()
+                            check(parser.eventType != XmlPullParser.END_DOCUMENT) { "Unexpected end of EPG XML" }
                             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "display-name") {
                                 name = ChannelUtil.standardChannelName(getSafeText())
                             }
@@ -100,6 +114,8 @@ class EpgRepository(
                         var title = ""
                         val depth = parser.depth
                         while (!(parser.next() == XmlPullParser.END_TAG && parser.depth == depth)) {
+                            context.ensureActive()
+                            check(parser.eventType != XmlPullParser.END_DOCUMENT) { "Unexpected end of EPG XML" }
                             if (parser.eventType == XmlPullParser.START_TAG && parser.name == "title") {
                                 title = getSafeText()
                             }
@@ -109,21 +125,19 @@ class EpgRepository(
                             val startAt = try { dateFormat.parse(startTime)?.time ?: 0L } catch (e: Exception) { 0L }
                             val endAt = try { dateFormat.parse(stopTime)?.time ?: 0L } catch (e: Exception) { 0L }
 
-                            if (startAt != 0L && endAt != 0L) {
+                            if (startAt != 0L && endAt > startAt) {
                                 val programmes = programmeMap.getOrPut(channelId) { mutableListOf() }
 
-                                // 检查重叠 (Long 对比)
-                                val isOverlap = programmes.any { prog ->
-                                    startAt < prog.endAt && endAt > prog.startAt
-                                }
-
-                                if (!isOverlap) {
+                                val index = intervals.getOrPut(channelId) { ProgrammeIntervalIndex() }
+                                if (index.add(startAt, endAt)) {
                                     programmes.add(EpgProgramme(startAt = startAt, endAt = endAt, title = title))
                                 }
                             }
                         }
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 log.e("解析XML标签失败", e)
                 continue
@@ -138,13 +152,15 @@ class EpgRepository(
         EpgList(epgList)
     }
 
-    private fun skip(parser: XmlPullParser) {
+    private suspend fun skip(parser: XmlPullParser) {
         if (parser.eventType != XmlPullParser.START_TAG) {
             return
         }
         var depth = 1
         while (depth != 0) {
+            currentCoroutineContext().ensureActive()
             when (parser.next()) {
+                XmlPullParser.END_DOCUMENT -> error("Unexpected end of EPG XML")
                 XmlPullParser.END_TAG -> depth--
                 XmlPullParser.START_TAG -> depth++
             }
@@ -155,20 +171,31 @@ class EpgRepository(
         filteredChannels: List<String> = emptyList(),
         refreshTimeThreshold: Int,
     ): EpgList = withContext(Dispatchers.IO) {
-        try {
-            val xmlFile = epgXmlRepository.getEpgXmlFile()
-            FileInputStream(xmlFile).use {
-                parseFromXml(it, filteredChannels.toSet())
+        refreshMutex.withLock {
+            try {
+                val xmlFile = epgXmlRepository.getEpgXmlFile()
+                val channels = filteredChannels.toSet()
+                val key = listOf(source.url, xmlFile.lastModified(), xmlFile.length(), channels)
+                if (key == parsedKey) return@withLock parsedValue!!
+                val parsed = FileInputStream(xmlFile).buffered().use { parseFromXml(it, channels) }
+                parsedKey = key
+                parsedValue = parsed
+                parsed
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (ex: Exception) {
+                log.e("获取节目单失败", ex)
+                EpgList()
             }
-        } catch (ex: Exception) {
-            log.e("获取节目单失败", ex)
-            EpgList()
         }
     }
 
-    suspend fun clearCache() {
+    suspend fun clearCache() = refreshMutex.withLock {
+        parsedKey = null
+        parsedValue = null
         epgXmlRepository.clearCache()
     }
+
 }
 
 /**
@@ -211,14 +238,28 @@ private class EpgXmlRepository(
 
                     if (!response.isSuccessful) throw Exception("${response.code}: ${response.message}")
 
-                    etag = response.header("ETag") ?: ""
-                    response.fetchStream().use { inputStream ->
-                        file.outputStream().use { outputStream ->
-                            inputStream.copyTo(outputStream)
+                    val temporary = File.createTempFile("epg-", ".tmp", file.parentFile)
+                    try {
+                        response.fetchStream().use { inputStream ->
+                            temporary.outputStream().use { outputStream ->
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                while (true) {
+                                    currentCoroutineContext().ensureActive()
+                                    val count = inputStream.read(buffer)
+                                    if (count < 0) break
+                                    outputStream.write(buffer, 0, count)
+                                }
+                            }
                         }
+                        check(temporary.renameTo(file)) { "Cannot replace EPG cache" }
+                        etag = response.header("ETag") ?: ""
+                    } finally {
+                        temporary.delete()
                     }
                 }
                 return@withContext // 成功下载并缓存，跳出循环
+            } catch (ex: CancellationException) {
+                throw ex
             } catch (ex: Exception) {
                 retryCount++
                 if (retryCount > Constants.HTTP_RETRY_COUNT) {
@@ -243,6 +284,8 @@ private class EpgXmlRepository(
         if (isExpired) {
             try {
                 downloadAndCacheXml(file)
+            } catch (ex: CancellationException) {
+                throw ex
             } catch (ex: Exception) {
                 if (!file.exists()) throw ex
                 log.w("下载节目单失败，使用过期缓存: ${ex.message}")

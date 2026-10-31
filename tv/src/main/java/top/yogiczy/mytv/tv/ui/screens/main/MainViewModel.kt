@@ -286,7 +286,10 @@ class MainViewModel(
             }
         }
 
+    private var epgRefreshGeneration = 0L
+
     private suspend fun refreshEpg() {
+        val generation = ++epgRefreshGeneration
         if (!Configs.epgEnable) return
 
         // 优先使用入参 channelGroupList（来自 init），其次用最近一次成功的列表，最后才从 uiState 取
@@ -296,8 +299,6 @@ class MainViewModel(
         } ?: return
 
         if (channelGroupList.channelList.isEmpty()) return
-
-        EpgList.clearCache()
 
         flow {
             val epgUrl = channelGroupList.epgUrl
@@ -322,6 +323,8 @@ class MainViewModel(
                 Snackbar.show("节目单获取失败，请检查网络连接", type = SnackbarType.ERROR)
             }
             .map { epgList ->
+                if (generation != epgRefreshGeneration) return@map
+                EpgList.clearCache()
                 // Record current timestamp when EPG is successfully updated
                 lastEpgUpdateTimestamp = System.currentTimeMillis()
                 // 即使 uiState 不是 Ready（如 Error），也用最新的 channelGroupList 升级到 Ready

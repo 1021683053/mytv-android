@@ -8,7 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -20,6 +19,10 @@ import androidx.tv.material3.RadioButton
 import androidx.tv.material3.Text
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import top.yogiczy.mytv.core.data.network.await
 import okhttp3.Request
 import top.yogiczy.mytv.core.data.network.OkHttp
 import top.yogiczy.mytv.core.data.utils.ChannelUtil
@@ -29,8 +32,6 @@ import top.yogiczy.mytv.tv.ui.theme.MyTVTheme
 import top.yogiczy.mytv.tv.ui.utils.focusOnLaunchedSaveable
 import top.yogiczy.mytv.tv.ui.utils.handleKeyEvents
 import top.yogiczy.mytv.tv.ui.utils.ifElse
-import java.io.IOException
-import kotlin.system.measureTimeMillis
 
 @Composable
 fun ChannelUrlItem(
@@ -76,32 +77,40 @@ fun ChannelUrlItem(
     )
 }
 
+private val probePermits = Semaphore(3)
+private val probeCache = object : LinkedHashMap<String, Pair<Long, Long>>(64, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<Long, Long>>?) = size > 128
+}
+
 @Composable
 private fun rememberUrlDelay(url: String): Long {
-    var elapsedTime by remember { mutableLongStateOf(0) }
-    var hasError by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        try {
-            withContext(Dispatchers.IO) {
-                val client = OkHttp.client
-                val request = Request.Builder().url(url).build()
-
-                elapsedTime = measureTimeMillis {
-                    try {
-                        client.newCall(request).execute().use { response ->
-                            if (!response.isSuccessful) throw IOException("Unexpected code $response")
-                        }
-                    } catch (_: IOException) {
-                        hasError = true
+    var elapsedTime by remember(url) { mutableLongStateOf(0) }
+    LaunchedEffect(url) {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return@LaunchedEffect
+        probePermits.withPermit {
+            val now = android.os.SystemClock.elapsedRealtime()
+            val cached = probeCache[url]
+            if (cached != null && now - cached.first < 60_000L) {
+                elapsedTime = cached.second
+                return@withPermit
+            }
+            try {
+                val started = android.os.SystemClock.elapsedRealtime()
+                elapsedTime = withContext(Dispatchers.IO) {
+                    OkHttp.client.newCall(Request.Builder().url(url).build()).await().use { response ->
+                        if (response.isSuccessful)
+                            android.os.SystemClock.elapsedRealtime() - started else 0L
                     }
                 }
+                probeCache[url] = android.os.SystemClock.elapsedRealtime() to elapsedTime
+            } catch (ex: CancellationException) {
+                throw ex
+            } catch (_: Exception) {
+                probeCache[url] = android.os.SystemClock.elapsedRealtime() to 0L
             }
-        } catch (_: Exception) {
         }
     }
-
-    return if (hasError) 0 else elapsedTime
+    return elapsedTime
 }
 
 @Preview
