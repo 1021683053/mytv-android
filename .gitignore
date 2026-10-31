@@ -23,6 +23,7 @@
 local.properties
 key.properties
 keystore.jks
+release.keystore
 .kotlin
 /release
 app/build/

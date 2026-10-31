@@ -108,10 +108,18 @@
 ## 发布
 - 发布流程：
     1. 确保项目代码已更新到最新版本
-    2. 执行`release.sh`脚本，按照提示输入新版本号
-    3. 脚本将自动更新`tv/build.gradle.kts`文件中的版本号，并提交到Git仓库
-    4. 推送标签到远程仓库，触发GitHub Actions编译APK
-    5. 等待编译完成，下载最新APK，会自动更新到GitHub 的release上，并自动触发update json    
+    2. 提交代码后执行 `bash release.sh 2.6.5`（非交互使用 `bash release.sh -y 2.6.5`）
+    3. 脚本创建新 Tag，推送到当前分支关联的远程仓库；已有 Tag 不会覆盖
+    4. GitHub Actions 从 Tag 自动填充版本并发布 APK，无须修改或提交版本号文件
+
+版本规则（本地与 CI 共用）：
+
+- 显式参数优先：`bash gradlew :tv:assembleRelease -PappVersion=2.6.5`。
+- 未传参数时读取最近的版本 Tag；Tag 之后有提交或已跟踪文件有修改时，添加 `-dev`，例如 `2.6.5-dev`。
+- 无可用 Git 信息时使用默认开发版本 `2.6.4-dev`；未跟踪文件不影响版本判断。
+- 支持 `X.Y.Z`、`X.Y.Z-beta`、`X.Y.Z-beta1` 至 `beta98`。major 范围 0..2099，minor/patch 范围 0..99。
+- `versionCode = major × 1000000 + minor × 10000 + patch × 100 + stage`，Beta 的 stage 为 0..98，正式版为 99；例如 `2.6.5-beta1` 为 2060501，`2.6.5` 为 2060599。开发版本沿用对应基础版本的 Code。
+- 同一版本重复构建时 Code 不变；发布版本应递增，新编码高于此前使用的 Code 35。APK 文件名及应用内版本均使用解析结果。
 
 ## 声明
 

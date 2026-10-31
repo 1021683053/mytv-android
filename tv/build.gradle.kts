@@ -15,6 +15,41 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Explicit release version > Git tag (with a dev suffix after local changes) > fallback.
+val explicitVersion = providers.gradleProperty("appVersion").orNull
+val gitDescription = if (explicitVersion == null) runCatching {
+    val result = providers.exec {
+        workingDir(rootDir)
+        commandLine("git", "describe", "--tags", "--match", "v[0-9]*", "--long", "--dirty", "--abbrev=8")
+        isIgnoreExitValue = true
+    }
+    if (result.result.get().exitValue == 0) result.standardOutput.asText.get().trim() else null
+}.getOrNull() else null
+val gitVersion = gitDescription?.let {
+    Regex("^v(.+)-(\\d+)-g[0-9a-f]+(-dirty)?$").matchEntire(it)
+}
+val appVersionName = explicitVersion?.removePrefix("v") ?: gitVersion?.let {
+    it.groupValues[1] + if (it.groupValues[2] != "0" || it.groupValues[3].isNotEmpty()) "-dev" else ""
+} ?: "2.6.4-dev"
+val versionParts = Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-beta([1-9][0-9]*)?)?(-dev)?$")
+    .matchEntire(appVersionName)
+    ?: error("Invalid app version '$appVersionName': expected X.Y.Z or X.Y.Z-beta[N], optionally followed by -dev")
+val (major, minor, patch) = versionParts.destructured
+val majorNumber = major.toIntOrNull() ?: error("Version major is too large")
+val minorNumber = minor.toIntOrNull() ?: error("Version minor is too large")
+val patchNumber = patch.toIntOrNull() ?: error("Version patch is too large")
+require(majorNumber in 0..2099 && minorNumber in 0..99 && patchNumber in 0..99) {
+    "Version components must be major 0..2099, minor/patch 0..99"
+}
+val betaNumber = versionParts.groupValues[4].takeIf { it.isNotEmpty() }?.let {
+    it.toIntOrNull()?.also { number -> require(number in 1..98) { "Beta number must be 1..98" } }
+        ?: error("Beta number is too large")
+}
+// Reserve 0..98 for beta releases and 99 for the final release; dev builds share the base code.
+val releaseStage = if (appVersionName.contains("-beta")) betaNumber ?: 0 else 99
+val appVersionCode = majorNumber * 1_000_000 + minorNumber * 10_000 + patchNumber * 100 + releaseStage
+require(appVersionCode > 0) { "Version code must be positive" }
+
 android {
     namespace = "top.yogiczy.mytv.tv"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -44,8 +79,8 @@ android {
         applicationId = "com.chinablue.tv"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = 35
-        versionName = "2.6.4"
+        versionCode = appVersionCode
+        versionName = appVersionName
         vectorDrawables {
             useSupportLibrary = true
         }

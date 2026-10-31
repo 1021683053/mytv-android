@@ -1,143 +1,71 @@
 #!/bin/bash
+set -euo pipefail
 
-# 遇到错误立即停止
-set -e
-
-# 解析参数：-y 跳过所有交互确认；位置参数为版本号
 YES=0
 NEW_NAME=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -y|--yes)
-            YES=1
-            shift
-            ;;
+        -y|--yes) YES=1 ;;
         *)
+            [[ -z "$NEW_NAME" ]] || { echo "只能指定一个版本号"; exit 1; }
             NEW_NAME="$1"
-            shift
             ;;
     esac
+    shift
 done
 
-# 配置文件路径
-GRADLE_FILE="tv/build.gradle.kts"
-
-# 1. 检查文件是否存在
-if [ ! -f "$GRADLE_FILE" ]; then
-    echo "❌ 错误: 找不到文件 $GRADLE_FILE"
+cd "$(dirname "$0")"
+if [[ -z "$NEW_NAME" ]]; then
+    [[ "$YES" -eq 0 ]] || { echo "用法：bash release.sh -y 2.6.5"; exit 1; }
+    read -r -p "请输入发布版本（如 2.6.5 或 2.6.5-beta1）: " NEW_NAME
+fi
+NEW_NAME="${NEW_NAME#v}"
+if [[ ! "$NEW_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta([1-9][0-9]*)?)?$ ]]; then
+    echo "版本格式错误：$NEW_NAME"
+    exit 1
+fi
+# Keep version bounds consistent with Gradle's versionCode encoding.
+MAJOR="${BASH_REMATCH[1]}"
+MINOR="${BASH_REMATCH[2]}"
+PATCH="${BASH_REMATCH[3]}"
+BETA="${BASH_REMATCH[5]}"
+if [[ ${#MAJOR} -gt 4 || ${#MINOR} -gt 2 || ${#PATCH} -gt 2 || ${#BETA} -gt 2 ]]; then
+    echo "版本范围错误：major 0..2099，minor/patch 0..99，beta 1..98"
+    exit 1
+fi
+if (( MAJOR > 2099 || MINOR > 99 || PATCH > 99 )) || [[ -n "$BETA" && "$BETA" -gt 98 ]] || [[ "$NEW_NAME" == "0.0.0-beta" ]]; then
+    echo "版本范围错误：major 0..2099，minor/patch 0..99，beta 1..98"
     exit 1
 fi
 
-# 2. 提取当前版本信息
-# 仅匹配 defaultConfig 中的声明（行首缩进后紧跟 versionCode/versionName），
-# 避免误匹配 applicationVariants 中的局部变量（如 val versionName = ...）
-CURRENT_CODE=$(grep -E '^[[:space:]]*versionCode = [0-9]+' "$GRADLE_FILE" | head -n 1 | sed -E 's/.*versionCode = ([0-9]+).*/\1/')
-CURRENT_NAME=$(grep -E '^[[:space:]]*versionName = "' "$GRADLE_FILE" | head -n 1 | sed -E 's/.*versionName = "([^"]+)".*/\1/')
-
-if [ -z "$CURRENT_CODE" ] || [ -z "$CURRENT_NAME" ]; then
-    echo "❌ 错误: 无法从 $GRADLE_FILE 中解析版本信息，请检查文件格式。"
-    exit 1
-fi
-
-# 3. 计算新版本 Code (自动 +1)
-NEW_CODE=$((CURRENT_CODE + 1))
-
-# 4. 交互输入
-echo "========================================"
-echo "📦 当前版本: $CURRENT_NAME (Code: $CURRENT_CODE)"
-echo "🚀 下个版本 Code 将自动升级为: $NEW_CODE"
-echo "========================================"
-
-# 如果脚本带版本号参数运行 (./release.sh 2.3.5)，则直接使用参数
-if [ -n "$NEW_NAME" ]; then
-    :
-elif [ "$YES" -eq 1 ]; then
-    # -y 且未指定版本号：保持当前版本号
-    NEW_NAME="$CURRENT_NAME"
-else
-    read -p "请输入新版本名称 (直接回车保持 $CURRENT_NAME): " INPUT_NAME
-    # 如果输入为空，则使用当前名称
-    NEW_NAME=${INPUT_NAME:-$CURRENT_NAME}
-fi
-
-echo ""
-echo "即将执行更新:"
-echo "   Version Name: $CURRENT_NAME -> $NEW_NAME"
-echo "   Version Code: $CURRENT_CODE -> $NEW_CODE"
-echo ""
-
-if [ "$YES" -eq 0 ]; then
-    read -p "确认继续吗? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "已取消。"
-        exit 1
-    fi
-fi
-
-# 5. 修改 Gradle 文件
-echo "正在更新 $GRADLE_FILE ..."
-
-# 替换 versionCode（仅匹配行首缩进后的声明，避免误伤其他代码）
-sed -i.bak -E "s/^([[:space:]]*)versionCode = [0-9]+/\1versionCode = $NEW_CODE/" "$GRADLE_FILE"
-
-# 替换 versionName（仅匹配行首缩进后的声明，避免误伤其他代码）
-sed -i.bak -E "s/^([[:space:]]*)versionName = \"[^\"]*\"/\1versionName = \"$NEW_NAME\"/" "$GRADLE_FILE"
-
-# 删除备份文件
-rm "${GRADLE_FILE}.bak"
-
-# 6. Git 操作
+[[ -z "$(git status --porcelain --untracked-files=no)" ]] || { echo "请先提交已跟踪文件的修改，再发布"; exit 1; }
+CURRENT_BRANCH="$(git symbolic-ref --quiet --short HEAD)" || { echo "请在分支上发布"; exit 1; }
+REMOTE="$(git config --get "branch.$CURRENT_BRANCH.remote")" || { echo "当前分支没有配置远程仓库"; exit 1; }
+[[ "$REMOTE" != "." ]] || { echo "当前分支未关联外部远程仓库"; exit 1; }
+REMOTE_REF="$(git config --get "branch.$CURRENT_BRANCH.merge")"
 TAG_NAME="v$NEW_NAME"
-
-echo "正在执行 Git 提交..."
-git add "$GRADLE_FILE"
-git commit -m "chore(release): bump version to $NEW_NAME (code $NEW_CODE)"
-
-# 处理 Tag 重复的情况 (如果是同一个版本号重新发布)
-if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-    OVERWRITE_TAG=0
-    if [ "$YES" -eq 1 ]; then
-        OVERWRITE_TAG=1
-    else
-        read -p "⚠️ Tag $TAG_NAME 已存在。是否覆盖? (y/n) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            OVERWRITE_TAG=1
-        fi
-    fi
-    if [ "$OVERWRITE_TAG" -eq 1 ]; then
-        git tag -d "$TAG_NAME"
-        git push origin :refs/tags/"$TAG_NAME"
-    else
-        echo "已取消 Tag 创建，仅提交了代码。"
-        exit 0
-    fi
+RELEASE_COMMIT="$(git rev-parse HEAD)"
+TAG_EXISTS=0
+if git show-ref --verify --quiet "refs/tags/$TAG_NAME"; then
+    TAG_COMMIT="$(git rev-parse --verify "refs/tags/$TAG_NAME^{commit}")" || { echo "Tag $TAG_NAME 未指向提交，请使用新版本号"; exit 1; }
+    [[ "$TAG_COMMIT" == "$RELEASE_COMMIT" ]] || { echo "Tag $TAG_NAME 指向其他提交，请使用新版本号"; exit 1; }
+    TAG_EXISTS=1
 fi
+REMOTE_TAG="$(git ls-remote --tags "$REMOTE" "refs/tags/$TAG_NAME")"
+[[ -z "$REMOTE_TAG" ]] || { echo "远程 Tag $TAG_NAME 已存在，请使用新版本号"; exit 1; }
 
-git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-
-echo "✅ 本地操作完成。"
-
-# 7. 推送（推送到当前分支，而非硬编码 main）
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-
-DO_PUSH=0
-if [ "$YES" -eq 1 ]; then
-    DO_PUSH=1
-else
-    read -p "是否立即推送到 GitHub 触发编译? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        DO_PUSH=1
-    fi
+echo "即将发布 ${TAG_NAME} 到 ${REMOTE}，分支 ${CURRENT_BRANCH} -> ${REMOTE_REF}"
+if [[ "$YES" -eq 0 ]]; then
+    read -r -p "确认创建 Tag 并推送？(y/n) " REPLY
+    [[ "$REPLY" == "y" || "$REPLY" == "Y" ]] || exit 0
 fi
-
-if [ "$DO_PUSH" -eq 1 ]; then
-    echo "正在推送到 GitHub (分支: $CURRENT_BRANCH)..."
-    git push origin "$CURRENT_BRANCH"
-    git push origin "$TAG_NAME"
-    echo "🚀 推送成功！GitHub Action 应该已经开始构建。"
+if [[ "$TAG_EXISTS" -eq 0 ]]; then
+    git tag -a "$TAG_NAME" "$RELEASE_COMMIT" -m "Release $TAG_NAME"
+fi
+if git push --atomic "$REMOTE" "$RELEASE_COMMIT:$REMOTE_REF" "refs/tags/$TAG_NAME"; then
+    echo "已推送 ${TAG_NAME}，GitHub Actions 将自动填充版本并构建 APK"
 else
-    echo "请稍后手动执行: git push origin $CURRENT_BRANCH && git push origin $TAG_NAME"
+    PUSH_STATUS=$?
+    echo "推送失败，已保留本地 Tag ${TAG_NAME}；修复推送问题后，可在当前提交重试发布" >&2
+    exit "$PUSH_STATUS"
 fi

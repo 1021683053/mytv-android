@@ -17,9 +17,8 @@ permissions:
 # media3 由本地 fork (minyoad/media) 导出为预编译 AAR 并随仓库提交（tv/libs/media3-*.aar），
 # 构建无需再检出外部 media3 源码，本仓库完全自包含。
 #
-# 发布流程（由 release.sh 驱动）：
-#   release.sh 修改 versionName -> commit -> 创建 v<versionName> tag -> push 当前分支 + tag
-#   本工作流按 tag 编译 APK。versionName 含 "beta" 时标记为 prerelease。
+# release.sh 创建并推送版本 Tag；本地与 CI 共用 Gradle 版本解析规则。
+# CI 显式传入 Tag，保证 APK 内部版本、文件名和 Release 一致。
 
 jobs:
   build_apk:
@@ -33,16 +32,19 @@ jobs:
 
       # 2. 切换到指定 TAG
       - name: Checkout tag
+        env:
+          REQUESTED_TAG: ${{ github.event.inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            TAG="$REQUESTED_TAG"
           else
-            TAG="${{ github.ref_name }}"
+            TAG="$GITHUB_REF_NAME"
           fi
 
+          [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-beta([1-9][0-9]*)?)?$ ]] || { echo "Invalid release tag: $TAG"; exit 1; }
           echo "Target TAG: $TAG"
           git fetch --tags --force
-          git checkout "$TAG"
+          git checkout --detach "refs/tags/$TAG"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
 
       # 3. 配置 JDK（21，与本地一致）
@@ -72,7 +74,7 @@ jobs:
 
       # 6. 编译 Release APK
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease -PappVersion="$TAG"
 
       # 7. 验证 APK 签名（未配置密钥时跳过）
       - name: Check APK signature
